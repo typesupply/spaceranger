@@ -371,6 +371,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             spacing=itemSpacing
         )
         collectionView.set(items)
+        collectionView.getMerzContainer().setBackgroundColor(self.backgroundColor)
         self.populateGrid()
         return True
 
