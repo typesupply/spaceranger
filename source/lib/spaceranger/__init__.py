@@ -56,6 +56,10 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.adjunctGlyphs = set()
 
         self.loadColors()
+        startText = "HELLO"
+        glyph = CurrentGlyph()
+        if glyph is not None:
+            startText = "/?"
 
         content = """
         = HorizontalStack
@@ -63,7 +67,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         * TwoColumnForm         @settingsForm
 
         > : Text:
-        > [_/?_]                 @textField
+        > [__]                  @textField
         > : Size:
         > [_100_](±)            @sizeField
         > : Discrete Location:
@@ -94,6 +98,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 titleColumnWidth=120,
                 itemColumnWidth=200,
                 height="fit"
+            ),
+            textField=dict(
+                value=startText
             ),
             sizeField=dict(
                 valueType="integer",
@@ -190,6 +197,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             text,
             cmap=self.ufoOperator.getCharacterMapping()
         )
+        if not glyphNames:
+            return
         currentGlyphName = ""
         glyph = CurrentGlyph()
         if glyph is not None:
@@ -374,6 +383,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         itemPadding = gridSettings["itemPadding"]
         itemHeight = gridSettings["itemHeight"]
         glyphNames = gridSettings["glyphNames"]
+        if not glyphNames:
+            return
         columnWidths = []
         descenders = set([0])
         upm = 1000
@@ -461,6 +472,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             return
         discreteLocation = settings["discreteLocation"]
         glyphNames = settings["glyphNames"]
+        if not glyphNames:
+            return
         availableGlyphNames = self.prepolator.getCompatibilitySpaceGlyphNames(discreteLocation)
         for glyphName in glyphNames:
             if glyphName not in availableGlyphNames:
