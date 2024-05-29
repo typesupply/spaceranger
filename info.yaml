@@ -1,18 +1,19 @@
-name: myExtension
-developer: RoboDocs
-developerURL: http://github.com/roboDocs
+name: Space Ranger
+path: Space_Ranger.roboFontExt
+developer: Type Supply
+developerURL: http://typesupply.com
 launchAtStartUp: true
-mainScript: hello.py
-version: 0.2.6
+mainScript: main.py
+version: 0.0.1b
 addToMenu:
-- path: doSomething.py
-  preferredName: do something
-  shortKey: [1179648, b]
-- path: doSomethingElse.py
-  preferredName: do something else
-  shortKey: [524288, o]
+- path: menu_currentDesignspace.py
+  preferredName: Current Designspace
+  shortKey: ""
+- path: menu_openDesignspace.py
+  preferredName: Open Designspace
+  shortKey: ""
 html: true
-timeStamp: 1638366053.720922
+# timeStamp: 1638366053.720922
 requiresVersionMajor: '4'
-requiresVersionMinor: '0'
-expireDate: '2020-12-31'
+requiresVersionMinor: '5b'
+# expireDate: '2020-12-31'

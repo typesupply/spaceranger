@@ -1,12 +1,11 @@
 libFolder: source/lib
 resourcesFolder: source/resources
 htmlFolder: source/html
-requirements: |
-  DrawBot
+# requirements: |
 license: |
   MIT License
 
-  Copyright (c) [year] [fullname]
+  Copyright (c) 2024 Type Supply LLC
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
