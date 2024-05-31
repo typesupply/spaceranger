@@ -1,4 +1,6 @@
 import pathlib
+import math
+from fontTools.pens.pointPen import GuessSmoothPointPen
 import merz
 import ezui
 from mojo.UI import splitText, inDarkMode
@@ -17,6 +19,8 @@ except ModuleNotFoundError:
     havePrepolator = False
 
 
+debug = __name__ == "__main__"
+
 modeColors = dict(
     light=dict(
         background=(1, 1, 1, 1),
@@ -31,8 +35,10 @@ modeColors = dict(
 )
 collectionInset = 20
 
-debug = __name__ == "__main__"
 
+# -----------------
+# Window Controller
+# -----------------
 
 class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
@@ -64,6 +70,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         glyph = CurrentGlyph()
         if glyph is not None:
             startText = "/?"
+        startText = "S"
 
         content = """
         * HorizontalStack       @toolbarStack
@@ -129,7 +136,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             showSources=False,
             highlightSources=False,
             highlightUnsmooths=False,
-            unsmoothTolerance=0.05,
+            unsmoothThreshold=2.0,
             xAlignment="center"
         )
         self.loadOperatorOptions()
@@ -156,9 +163,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         # Discrete Location
         discreteLocations = []
         discreteLocation = self.settings["discreteLocation"]
-        for discreteLocation in self.ufoOperator.getDiscreteLocations():
-            name = self.ufoOperator.nameLocation(discreteLocation)
-            discreteLocations.append(discreteLocation)
+        for dL in self.ufoOperator.getDiscreteLocations():
+            name = self.ufoOperator.nameLocation(dL)
+            discreteLocations.append(dL)
         # don't allow an unknown discrete axis.
         if discreteLocation not in discreteLocations:
             discreteLocation = None
@@ -314,6 +321,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                     name="glyphPathLayer",
                     fillColor=self.fillColor
                 )
+                unsmoothHighlightLayer = glyphContainer.appendBaseSublayer(
+                    name="unsmoothHighlightLayer"
+                )
                 items.append(item)
                 row.append(item)
                 item.SRLocation = itemLocation
@@ -340,6 +350,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         xAxisName = settings["xAxisName"]
         columnWidthMode = settings["columnWidthMode"]
         sizeMode = settings["sizeMode"]
+        discreteLocation = settings["discreteLocation"]
         collectionView = self.w.getItem("collectionView")
         if not glyphNames:
             return
@@ -377,29 +388,12 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             descenders.add(info.descender)
             upm = info.unitsPerEm
             # make glyph
-            compiledGlyph = RGlyph()
-            compiledGlyph.width = 0
-            for glyphName in glyphNames:
-                if glyphName in self.incompatibleGlyphs:
-                    continue
-                compiledGlyph = RGlyph()
-                for glyphName in glyphNames:
-                    mathGlyph = self.ufoOperator.makeOneGlyph(
-                        glyphName=glyphName,
-                        location=location
-                    )
-                    if mathGlyph is None:
-                        # operator couldn't make the glyph.
-                        # skip quietly because it's probably
-                        # bogus user input like asking for
-                        # a character that isn't in the fonts.
-                        continue
-                    glyph = RGlyph()
-                    glyph.width = mathGlyph.width
-                    pen = glyph.getPointPen()
-                    mathGlyph.drawPoints(pen)
-                    compiledGlyph.appendGlyph(glyph, offset=(compiledGlyph.width, 0))
-                    compiledGlyph.width += glyph.width
+            compiledGlyph = compileGlyph(
+                glyphNames=glyphNames,
+                ufoOperator=self.ufoOperator,
+                location=location,
+                incompatibleGlyphs=self.incompatibleGlyphs,
+            )
             l = location[xAxisName]
             if l not in fitWidthCalculator:
                 fitWidthCalculator[l] = set()
@@ -426,6 +420,24 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         settings["upm"] = upm
         self.updateCollectionViewScale()
         descender = min(descenders)
+        # gather smooth data
+        checkSmooths = settings["highlightUnsmooths"]
+        unsmoothThreshold = settings["unsmoothThreshold"]
+        unsmoothHighlightSize = upm * 0.1
+        unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
+        if checkSmooths:
+            defaultLocation = self.ufoOperator.newDefaultLocation(discreteLocation=discreteLocation)
+            model = compileGlyph(
+                glyphNames=glyphNames,
+                ufoOperator=self.ufoOperator,
+                location=defaultLocation,
+                incompatibleGlyphs=self.incompatibleGlyphs,
+            )
+            modelSmooths = []
+            for contourIndex, contour in enumerate(model.contours):
+                for segmentIndex, segment in enumerate(contour.segments):
+                    if segment.smooth:
+                        modelSmooths.append((contourIndex, segmentIndex))
         # populate the items
         for key, item in keyToItem.items():
             glyph = keyToGlyph[key]
@@ -435,6 +447,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             item.setSize((columnWidth, itemHeight))
             container = item.getLayer("glyphContainer")
             pathLayer = container.getSublayer("glyphPathLayer")
+            unsmoothHighlightLayer = container.getSublayer("unsmoothHighlightLayer")
             pathYOffset = itemPadding - descender
             pathXOffset = (columnWidth - glyph.width) / 2
             with container.propertyGroup():
@@ -442,6 +455,30 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             with pathLayer.propertyGroup():
                 pathLayer.setPath(glyph.getRepresentation("merz.CGPath"))
                 pathLayer.setPosition((pathXOffset, pathYOffset))
+            unsmoothHighlightLayer.setPosition((pathXOffset, pathYOffset))
+            if checkSmooths:
+                unsmoothHighlightLayer.clearSublayers()
+                for contourIndex, segmentIndex in modelSmooths:
+                    contour = glyph.contours[contourIndex]
+                    v = getRelativeSmoothness(
+                        contour=contour,
+                        segmentIndex=segmentIndex,
+                        threshold=unsmoothThreshold + smoothToleranceBase
+                    )
+                    if v:
+                        segment = contour.segments[segmentIndex]
+                        onCurve = segment.onCurve
+                        x = onCurve.x
+                        y = onCurve.y
+                        unsmoothHighlightLayer.appendOvalSublayer(
+                            position=(x-unsmoothHighlightHalfSize, y-unsmoothHighlightHalfSize),
+                            size=(unsmoothHighlightSize, unsmoothHighlightSize),
+                            fillColor=None,
+                            strokeColor=(1, 0, 0, v),
+                            strokeWidth=1
+                        )
+
+        # set
         scale = collectionView.getScale()
         collectionView.set(items)
 
@@ -549,6 +586,45 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.updateCollectionViewScale()
 
 
+def compileGlyph(
+        glyphNames,
+        ufoOperator,
+        location,
+        incompatibleGlyphs=[],
+        smooth=False
+    ):
+    compiledGlyph = RGlyph()
+    compiledGlyph.width = 0
+    for glyphName in glyphNames:
+        if glyphName in incompatibleGlyphs:
+            continue
+        compiledGlyph = RGlyph()
+        for glyphName in glyphNames:
+            mathGlyph = ufoOperator.makeOneGlyph(
+                glyphName=glyphName,
+                location=location
+            )
+            if mathGlyph is None:
+                # operator couldn't make the glyph.
+                # skip quietly because it's probably
+                # bogus user input like asking for
+                # a character that isn't in the fonts.
+                continue
+            glyph = RGlyph()
+            glyph.width = mathGlyph.width
+            pen = glyph.getPointPen()
+            if smooth:
+                pen = GuessSmoothPointPen(pen)
+            mathGlyph.extractGlyph(glyph.asDefcon(), pointPen=pen)
+            compiledGlyph.appendGlyph(glyph, offset=(compiledGlyph.width, 0))
+            compiledGlyph.width += glyph.width
+    return compiledGlyph
+
+
+# ----------------
+# Settings Popover
+# ----------------
+
 class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
     def build(self,
@@ -593,7 +669,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         showSources = settings["showSources"]
         highlightSources = settings["highlightSources"]
         highlightUnsmooths = settings["highlightUnsmooths"]
-        unsmoothTolerance = settings["unsmoothTolerance"]
+        unsmoothThreshold = settings["unsmoothThreshold"]
         self.suffixes = ["_none_", "_auto_"]
         suffixOptions = ["None", "Auto"]
         suffixes = settings["glyphNameSuffixes"]
@@ -661,13 +737,13 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         :
         [X] Highlight Unsmooths @highlightUnsmoothsCheckbox
-        : Unsmooth Tolerance:
-        ---X--- 123             @unsmoothToleranceSlider
+        : Unsmooth Threshold:
+        ---X--- 123             @unsmoothThresholdSlider
         """
         numberFieldWidth = 50
         descriptionData = dict(
             content=dict(
-                titleColumnWidth=130,
+                titleColumnWidth=140,
                 itemColumnWidth=200,
             ),
             textSuffixPopUpButton=dict(
@@ -718,11 +794,11 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             highlightUnsmoothsCheckbox=dict(
                 value=highlightUnsmooths
             ),
-            unsmoothToleranceSlider=dict(
+            unsmoothThresholdSlider=dict(
                 minValue=0,
-                maxValue=0.5,
-                value=unsmoothTolerance,
-                tickMarks=11,
+                maxValue=4,
+                value=unsmoothThreshold,
+                tickMarks=21,
                 stopOnTickMarks=True
             ),
         )
@@ -762,7 +838,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
-        settings["unsmoothTolerance"] = values["unsmoothToleranceSlider"]
+        settings["unsmoothThreshold"] = values["unsmoothThresholdSlider"]
         self.callback()
 
 
@@ -805,6 +881,67 @@ def splitSuffix(glyphName):
     if not suffix:
         return None
     return suffix
+
+
+# ---------------------
+# Post-Processing Tools
+# ---------------------
+
+def calculateAngle(point1, point2, r=None):
+    width = point2[0] - point1[0]
+    height = point2[1] - point1[1]
+    angle = round(math.atan2(height, width) * 180 / math.pi, 3)
+    if r is not None:
+        angle = round(angle, r)
+    return angle
+
+def unwrapPoint(pt):
+    return (pt.x, pt.y)
+
+smoothToleranceBase = 0.05
+
+def getRelativeSmoothness(
+        contour,
+        segmentIndex,
+        tolerance=smoothToleranceBase,
+        threshold=2
+    ):
+    segments = list(contour.segments)
+    p = segmentIndex - 1
+    n = segmentIndex + 1
+    if n == len(segments):
+        n = 0
+    previousSegment = segments[p]
+    segment = segments[segmentIndex]
+    nextSegment = segments[n]
+    inPoints = None
+    outPoints = None
+    if segment.type == "curve" and nextSegment.type == "curve":
+        bcpIn = unwrapPoint(segment.offCurve[1])
+        anchor = unwrapPoint(segment.onCurve)
+        bcpOut = unwrapPoint(nextSegment.offCurve[0])
+        inPoints = (bcpIn, anchor)
+        outPoints = (anchor, bcpOut)
+    elif segment.type == "curve" and nextSegment.type == "line":
+        bcpIn = unwrapPoint(segment.offCurve[1])
+        anchor = unwrapPoint(segment.onCurve)
+        nextAnchor = unwrapPoint(nextSegment.onCurve)
+        inPoints = (bcpIn, anchor)
+        outPoints = (anchor, nextAnchor)
+    elif segment.type == "line" and nextSegment.type == "curve":
+        previousAnchor = unwrapPoint(previousSegment.onCurve)
+        anchor = unwrapPoint(segment.onCurve)
+        bcpOut = unwrapPoint(nextSegment.offCurve[0])
+        inPoints = (previousAnchor, anchor)
+        outPoints = (anchor, bcpOut)
+    inAngle = calculateAngle(*inPoints)
+    outAngle = calculateAngle(*outPoints)
+    diff = abs(inAngle - outAngle)
+    if diff <= tolerance:
+        diff = 0
+    elif diff > threshold:
+        diff = threshold
+    return diff / threshold
 
 if __name__ == "__main__":
     SpaceRangerWindowController(ufoOperator=CurrentDesignspace())
