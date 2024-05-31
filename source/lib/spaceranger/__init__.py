@@ -338,8 +338,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         axisMinimum = axis.minimum
         axisMaximum = axis.maximum
         locations = []
-        step = (axisMaximum - axisMinimum) / steps
-        for i in range(steps + 1):
+        step = (axisMaximum - axisMinimum) / (steps - 1)
+        for i in range(steps):
             location = axisMinimum + (i * step)
             locations.append(location)
         return locations
@@ -358,7 +358,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         suffixToApply = None
         if desiredSuffix == "_none_":
             suffixToApply = None
-        elif desiredSuffix == "_auto":
+        elif desiredSuffix == "_auto_":
             suffixToApply = splitSuffix(currentGlyphName)
         else:
             suffixToApply = desiredSuffix
