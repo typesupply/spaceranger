@@ -237,6 +237,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             currentGlyphName = glyph.name
         replacements = {"/?" : currentGlyphName}
         glyphNames = [replacements.get(i, i) for i in glyphNames]
+        settings["glyphNames"] = glyphNames
         # location
         discreteLocation = settings["discreteLocation"]
         xAxisName = settings["xAxisName"]
