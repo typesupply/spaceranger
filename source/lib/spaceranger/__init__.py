@@ -70,7 +70,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         glyph = CurrentGlyph()
         if glyph is not None:
             startText = "/?"
-        startText = "S"
 
         content = """
         * HorizontalStack       @toolbarStack
@@ -787,6 +786,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             ),
             highlightSourcesCheckbox=dict(
                 value=highlightSources
+            ),
+            xAlignmentRadioButtons=dict(
+                selected=xAlignment
             ),
             usePrepolatorCheckbox=dict(
                 value=usePrepolator
