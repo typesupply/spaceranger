@@ -133,7 +133,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             xAlignment="center"
         )
         self.loadOperatorOptions()
-        self.loadGlyphNames()
+        self.parseTextInput()
 
     def started(self):
         self.w.open()
@@ -200,8 +200,17 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.settings["axisNames"] = axisNames
         self.settings["xAxisName"] = xAxisName
         self.settings["yAxisName"] = yAxisName
+        # Suffixes
+        suffixes = set()
+        for glyphName in self.ufoOperator.glyphNames:
+            suffix = splitSuffix(glyphName)
+            if not suffix:
+                continue
+            suffixes.add(suffix)
+        self.settings["glyphNameSuffixes"] = list(sorted(suffixes))
+        self.settings["glyphNameSuffix"] = "_none_"
 
-    def loadGlyphNames(self):
+    def parseTextInput(self):
         glyphNames = splitText(
             self.w.getItemValue("textField"),
             cmap=self.ufoOperator.getCharacterMapping()
@@ -334,7 +343,24 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         collectionView = self.w.getItem("collectionView")
         if not glyphNames:
             return
-        self._runPrepolator()
+        desiredSuffix = settings["glyphNameSuffix"]
+        suffixToApply = None
+        if desiredSuffix == "_none_":
+            suffixToApply = None
+        elif desiredSuffix == "_auto":
+            suffixToApply = splitSuffix(currentGlyphName)
+        else:
+            suffixToApply = desiredSuffix
+        if suffixToApply:
+            allGlyphNames = self.ufoOperator.glyphNames
+            suffixedGlyphNames = []
+            for glyphName in glyphNames:
+                t = glyphName + "." + suffixToApply
+                if t in allGlyphNames:
+                    glyphName = t
+                suffixedGlyphNames.append(glyphName)
+            glyphNames = suffixedGlyphNames
+        self._runPrepolator(glyphNames)
         items = collectionView.get()
         keyToLocation = {}
         keyToItem = {}
@@ -434,7 +460,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     # Pre-Processing
 
-    def _runPrepolator(self):
+    def _runPrepolator(self, glyphNames):
         self.incompatibleGlyphs = set()
         settings = self.settings
         if not settings["usePrepolator"]:
@@ -442,7 +468,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         if self.prepolator is None:
             return
         discreteLocation = settings["discreteLocation"]
-        glyphNames = settings["glyphNames"]
         if not glyphNames:
             return
         availableGlyphNames = self.prepolator.getCompatibilitySpaceGlyphNames(discreteLocation)
@@ -464,7 +489,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     # Text
 
     def textFieldCallback(self, sender):
-        self.loadGlyphNames()
+        self.parseTextInput()
         self.buildItems()
         self.populateItems()
 
@@ -490,7 +515,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.populateItems()
 
     def roboFontDidSwitchCurrentGlyph(self, info):
-        self.loadGlyphNames()
+        self.parseTextInput()
         self.buildItems()
         self.populateItems()
 
@@ -569,13 +594,26 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         highlightSources = settings["highlightSources"]
         highlightUnsmooths = settings["highlightUnsmooths"]
         unsmoothTolerance = settings["unsmoothTolerance"]
+        self.suffixes = ["_none_", "_auto_"]
+        suffixOptions = ["None", "Auto"]
+        suffixes = settings["glyphNameSuffixes"]
+        if suffixes:
+            self.suffixes.append("---")
+            suffixOptions.append("---")
+            for suffix in suffixes:
+                self.suffixes.append(suffix)
+                suffixOptions.append(suffix)
+        suffixIndex = 0
+        suffix = settings["glyphNameSuffix"]
+        if suffix in self.suffixes:
+            suffixIndex = self.suffixes.index(suffix)
 
         content = """
         = TwoColumnForm
 
         !§ Text
         : Suffix:
-        (Choose ...)            @testSuffixPopUpButton
+        (Choose ...)            @textSuffixPopUpButton
 
 
         !§ Display
@@ -631,6 +669,10 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             content=dict(
                 titleColumnWidth=130,
                 itemColumnWidth=200,
+            ),
+            textSuffixPopUpButton=dict(
+                items=suffixOptions,
+                selected=suffixIndex
             ),
             sizeRadioButtons=dict(
                 selected=sizeMode
@@ -700,6 +742,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
     def contentCallback(self, sender):
         values = self.w.getItemValues()
         settings = self.settings
+        settings["glyphNameSuffix"] = self.suffixes[values["textSuffixPopUpButton"]]
         settings["sizeMode"] = ["fit", "size"][values["sizeRadioButtons"]]
         settings["pointSize"] = values["pointSizeField"]
         if settings["discreteLocations"]:
@@ -752,6 +795,16 @@ def rangeToString(data):
         return " ".join([str(i) for i in data["locations"]])
     return str(data["steps"])
 
+def splitSuffix(glyphName):
+    if "." not in glyphName:
+        return None
+    if glyphName.startswith("."):
+        return None
+    base, suffix  = glyphName.split(".", 1)
+    suffix = suffix.strip()
+    if not suffix:
+        return None
+    return suffix
 
 if __name__ == "__main__":
     SpaceRangerWindowController(ufoOperator=CurrentDesignspace())
