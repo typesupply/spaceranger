@@ -25,12 +25,16 @@ modeColors = dict(
     light=dict(
         background=(1, 1, 1, 1),
         fill=(0, 0, 0, 1),
-        sourceBorder=(0, 0, 0, 0.25)
+        sourceBorder=(0, 0, 0, 0.25),
+        locationTextFill=(1, 1, 1, 1),
+        locationTextBackground=(0, 0, 0, 0.9),
     ),
     dark=dict(
         background=(0, 0, 0, 1),
         fill=(1, 1, 1, 1),
-        sourceBorder=(1, 1, 1, 0.25)
+        sourceBorder=(1, 1, 1, 0.25),
+        locationTextFill=(0, 0, 0, 1),
+        locationTextBackground=(1, 1, 1, 0.95),
     ),
 )
 
@@ -38,6 +42,7 @@ itemPointSize = 100
 itemPadding = itemPointSize * 0.1
 itemSpacing = itemPointSize * 0.1
 gridInset = itemPointSize * 0.1
+itemCornerRadius = itemPointSize * 0.07
 
 
 # -----------------
@@ -136,7 +141,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 steps=5
             ),
             columnWidthMode="fit",
-            xAlignment="center",
 
             unprocessedGlyphNames=[],
             glyphNames=[],
@@ -243,7 +247,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 # base
                 base = merz.Base(
                     borderWidth=1,
-                    cornerRadius=10,
+                    cornerRadius=itemCornerRadius,
                     # backgroundColor=(1, 0, 0, 0.25),
                     acceptsHit=True
                 )
@@ -261,6 +265,18 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 # post-processing
                 glyphContainerLayer.appendBaseSublayer(
                     name="unsmoothHighlights"
+                )
+                # location info
+                locationText = "\n".join([f"{k}: {v}" for k, v in sorted(location.items())])
+                locationInfoLayer = base.appendTextBoxSublayer(
+                    name="locationText",
+                    horizontalAlignment="left",
+                    cornerRadius=itemCornerRadius,
+                    padding=(itemCornerRadius, itemCornerRadius),
+                    text=locationText,
+                    pointSize=10,
+                    figureStyle="tabular",
+                    visible=False
                 )
                 # store
                 self.items.append(base)
@@ -418,6 +434,12 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             y += itemSpacing * rowIndex
             item.setSize((columnWidth, itemHeight))
             item.setPosition((x, y))
+            # update the location text
+            locationTextLayer = item.getSublayer("locationText")
+            with locationTextLayer.propertyGroup():
+                locationTextLayer.setSize((columnWidth, itemHeight))
+                locationTextLayer.setFillColor(self.locationTextFillColor)
+                locationTextLayer.setBackgroundColor(self.locationTextBackgroundColor)
             # update the source indicator
             if highlightSources and isSource:
                 item.setBorderColor(self.sourceBorderColor)
@@ -517,6 +539,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.backgroundColor = colors["background"]
         self.fillColor = colors["fill"]
         self.sourceBorderColor = colors["sourceBorder"]
+        self.locationTextFillColor = colors["locationTextFill"]
+        self.locationTextBackgroundColor = colors["locationTextBackground"]
 
     def loadOperatorOptions(self):
         # Discrete Location
@@ -650,11 +674,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         width, height = gridItemContainer.getSize()
         gridView.setMerzViewSize((width * scale, height * scale))
 
-    def mouseDown(self, sender, event):
-        event = merz.unpackEvent(event)
-        clickCount = event["clickCount"]
-        if clickCount != 2:
-            return
+    def _findItemsForEvent(self, event):
         location = event["location"]
         location = self.gridContainer.convertWindowCoordinateToLayerCoordinate(
             point=location,
@@ -664,6 +684,14 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             location,
             onlyAcceptsHit=True
         )
+        return hits
+
+    def mouseDown(self, sender, event):
+        event = merz.unpackEvent(event)
+        clickCount = event["clickCount"]
+        if clickCount != 2:
+            return
+        hits = self._findItemsForEvent(event)
         for layer in hits:
             isSource = layer.getInfoValue("isSource")
             location = layer.getInfoValue("location")
@@ -673,6 +701,19 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 if location == fontLocation:
                     font.asFontParts().openInterface()
                     break
+
+    def acceptsMouseMoved(self, sender):
+        return True
+
+    def mouseMoved(self, sender, event):
+        event = merz.unpackEvent(event)
+        if event["modifiers"] == ["option"]:
+            hits = self._findItemsForEvent(event)
+        else:
+            hits = []
+        for layer in self.items:
+            locationLayer = layer.getSublayer("locationText")
+            locationLayer.setVisible(layer in hits)
 
 
 def compileGlyph(
@@ -752,7 +793,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             columnWidthMode = 0
         else:
             columnWidthMode = 1
-        xAlignment = ["left", "center", "right"].index(settings["xAlignment"])
         usePrepolator = settings["usePrepolator"]
         showSources = settings["showSources"]
         highlightSources = settings["highlightSources"]
@@ -805,11 +845,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         [ ] Insert              @showSourcesCheckbox
         [ ] Highlight           @highlightSourcesCheckbox
 
-        : Alignment:
-        ( ) Left                @xAlignmentRadioButtons
-        (X) Center
-        ( ) Right
-
         !§ Pre-Process
 
         :
@@ -859,9 +894,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             highlightSourcesCheckbox=dict(
                 value=highlightSources
             ),
-            xAlignmentRadioButtons=dict(
-                selected=xAlignment
-            ),
             usePrepolatorCheckbox=dict(
                 value=usePrepolator
             ),
@@ -905,7 +937,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         if yAxisSettings:
             settings["yAxisSettings"] = yAxisSettings
         settings["columnWidthMode"] = ["fit", "mono"][values["columnWidthsRadioButtons"]]
-        settings["xAlignment"] = ["left", "center", "right"][values["xAlignmentRadioButtons"]]
         settings["showSources"] = values["showSourcesCheckbox"]
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
