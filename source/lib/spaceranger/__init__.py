@@ -99,10 +99,11 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             settingsButton=dict(
                 gravity="trailing"
             ),
-            itemView=dict(
-                backgroundColor=(0, 0, 1, 1),
+            gridView=dict(
+                backgroundColor=(1, 1, 1, 1),
                 width=">=300",
-                height=">=300"
+                height=">=300",
+                delegate=self
             )
         )
         self.w = ezui.EZWindow(
@@ -154,72 +155,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def destroy(self):
         self.clearObservedAdjunctObjects()
 
-    def loadColors(self):
-        if inDarkMode():
-            colors = modeColors["dark"]
-        else:
-            colors = modeColors["light"]
-        self.backgroundColor = colors["background"]
-        self.fillColor = colors["fill"]
-        self.sourceBorderColor = colors["sourceBorder"]
-
-    def loadOperatorOptions(self):
-        # Discrete Location
-        discreteLocations = []
-        discreteLocation = self.settings["discreteLocation"]
-        for dL in self.ufoOperator.getDiscreteLocations():
-            name = self.ufoOperator.nameLocation(dL)
-            discreteLocations.append(dL)
-        # don't allow an unknown discrete axis.
-        if discreteLocation not in discreteLocations:
-            discreteLocation = None
-        if discreteLocation is None and discreteLocations:
-            discreteLocation = discreteLocations[0]
-        self.settings["discreteLocation"] = discreteLocation
-        self.settings["discreteLocations"] = discreteLocations
-        # Axes
-        axisNames = []
-        xAxisName = self.settings["xAxisName"]
-        yAxisName = self.settings["yAxisName"]
-        for axis in self.ufoOperator.getOrderedContinuousAxes():
-            name = axis.name
-            axisNames.append(name)
-        # don't allow a y axis if there is only one axis.
-        if len(axisNames) < 2:
-            yAxisName = None
-        # an axis name could have changed.
-        # don't reference a missing name.
-        if xAxisName and xAxisName not in axisNames:
-            xAxisName = None
-        if yAxisName and yAxisName not in axisNames:
-            yAxisName = None
-        # pick an initial pair of axes. type designers
-        # like to look at x=width, y=weight, so that's
-        # the preferred default.
-        if xAxisName is None and axisNames:
-            xAxisName = axisNames[0]
-            if "width" in axisNames:
-                xAxisName = "width"
-        if yAxisName is None and len(axisNames) > 1:
-            if "weight" in axisNames and xAxisName != "weight":
-                yAxisName = "weight"
-            if yAxisName is None:
-                for name in axisNames:
-                    if name != xAxisName:
-                        yAxisName = name
-                        break
-        self.settings["axisNames"] = axisNames
-        self.settings["xAxisName"] = xAxisName
-        self.settings["yAxisName"] = yAxisName
-        # Suffixes
-        suffixes = set()
-        for glyphName in self.ufoOperator.glyphNames:
-            suffix = splitSuffix(glyphName)
-            if not suffix:
-                continue
-            suffixes.add(suffix)
-        self.settings["glyphNameSuffixes"] = list(sorted(suffixes))
-        self.settings["glyphNameSuffix"] = "_none_"
+    # Grid
 
     def parseTextInput(self):
         glyphNames = splitText(
@@ -549,8 +485,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                     elif group.getGlyphConfidence(glyph) <= 0.9:
                         group.matchModel(glyphs=[glyph])
 
-    # Post-Processing
-
     # Text
 
     def textFieldCallback(self, sender):
@@ -559,6 +493,73 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.updateItems()
 
     # Settings
+
+    def loadColors(self):
+        if inDarkMode():
+            colors = modeColors["dark"]
+        else:
+            colors = modeColors["light"]
+        self.backgroundColor = colors["background"]
+        self.fillColor = colors["fill"]
+        self.sourceBorderColor = colors["sourceBorder"]
+
+    def loadOperatorOptions(self):
+        # Discrete Location
+        discreteLocations = []
+        discreteLocation = self.settings["discreteLocation"]
+        for dL in self.ufoOperator.getDiscreteLocations():
+            name = self.ufoOperator.nameLocation(dL)
+            discreteLocations.append(dL)
+        # don't allow an unknown discrete axis.
+        if discreteLocation not in discreteLocations:
+            discreteLocation = None
+        if discreteLocation is None and discreteLocations:
+            discreteLocation = discreteLocations[0]
+        self.settings["discreteLocation"] = discreteLocation
+        self.settings["discreteLocations"] = discreteLocations
+        # Axes
+        axisNames = []
+        xAxisName = self.settings["xAxisName"]
+        yAxisName = self.settings["yAxisName"]
+        for axis in self.ufoOperator.getOrderedContinuousAxes():
+            name = axis.name
+            axisNames.append(name)
+        # don't allow a y axis if there is only one axis.
+        if len(axisNames) < 2:
+            yAxisName = None
+        # an axis name could have changed.
+        # don't reference a missing name.
+        if xAxisName and xAxisName not in axisNames:
+            xAxisName = None
+        if yAxisName and yAxisName not in axisNames:
+            yAxisName = None
+        # pick an initial pair of axes. type designers
+        # like to look at x=width, y=weight, so that's
+        # the preferred default.
+        if xAxisName is None and axisNames:
+            xAxisName = axisNames[0]
+            if "width" in axisNames:
+                xAxisName = "width"
+        if yAxisName is None and len(axisNames) > 1:
+            if "weight" in axisNames and xAxisName != "weight":
+                yAxisName = "weight"
+            if yAxisName is None:
+                for name in axisNames:
+                    if name != xAxisName:
+                        yAxisName = name
+                        break
+        self.settings["axisNames"] = axisNames
+        self.settings["xAxisName"] = xAxisName
+        self.settings["yAxisName"] = yAxisName
+        # Suffixes
+        suffixes = set()
+        for glyphName in self.ufoOperator.glyphNames:
+            suffix = splitSuffix(glyphName)
+            if not suffix:
+                continue
+            suffixes.add(suffix)
+        self.settings["glyphNameSuffixes"] = list(sorted(suffixes))
+        self.settings["glyphNameSuffix"] = "_none_"
 
     def settingsButtonCallback(self, sender):
         SpaceRangerGridSettingsWindowController(
@@ -607,6 +608,28 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def adjunctGlyphDidChangeMetrics(self, info):
         self.updateItems()
 
+    # MerzView Delegate
+
+    def acceptsFirstResponder(self, sender):
+        return True
+
+    # def magnifyWithEvent(self, sender, event):
+    #     gridView = self.w.getItem("gridView")
+    #     minScale = 0.25
+    #     maxScale = 5.0
+    #     magnificationDelta = event.magnification()
+    #     if magnificationDelta < 0:
+    #         factor = 0.9
+    #     else:
+    #         factor = 1.1
+    #     container = gridView.getMerzContainer()
+    #     scale = container.getContainerScale()
+    #     scale *= factor
+    #     if scale > maxScale:
+    #         scale = maxScale
+    #     elif scale < minScale:
+    #         scale = minScale
+    #     container.setContainerScale(scale)
 
 
 def compileGlyph(
