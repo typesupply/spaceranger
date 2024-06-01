@@ -244,7 +244,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 base = merz.Base(
                     borderWidth=1,
                     cornerRadius=10,
-                    # backgroundColor=(1, 0, 0, 0.25)
+                    # backgroundColor=(1, 0, 0, 0.25),
+                    acceptsHit=True
                 )
                 base.setInfoValue("location", location)
                 base.setInfoValue("isSource", location in sourceLocations)
@@ -648,6 +649,30 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         gridContainer.setContainerScale(scale)
         width, height = gridItemContainer.getSize()
         gridView.setMerzViewSize((width * scale, height * scale))
+
+    def mouseDown(self, sender, event):
+        event = merz.unpackEvent(event)
+        clickCount = event["clickCount"]
+        if clickCount != 2:
+            return
+        location = event["location"]
+        location = self.gridContainer.convertWindowCoordinateToLayerCoordinate(
+            point=location,
+            view=self.gridView
+        )
+        hits = self.gridContainer.findSublayersContainingPoint(
+            location,
+            onlyAcceptsHit=True
+        )
+        for layer in hits:
+            isSource = layer.getInfoValue("isSource")
+            location = layer.getInfoValue("location")
+            if not isSource:
+                continue
+            for font, fontLocation in self.ufoOperator.getFonts():
+                if location == fontLocation:
+                    font.asFontParts().openInterface()
+                    break
 
 
 def compileGlyph(
