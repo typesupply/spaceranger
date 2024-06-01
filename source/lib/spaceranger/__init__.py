@@ -33,7 +33,11 @@ modeColors = dict(
         sourceBorder=(1, 1, 1, 0.25)
     ),
 )
-collectionInset = 20
+
+itemPointSize = 100
+itemPadding = itemPointSize * 0.1
+itemSpacing = itemPointSize * 0.1
+gridInset = itemPointSize * 0.1
 
 
 # -----------------
@@ -76,7 +80,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         > [__]                  @textField
         > ({gearshape})         @settingsButton
 
-        * MerzCollectionView    @collectionView
+        * ScrollingMerzView     @gridView
         """
         numberFieldWidth = 50
         descriptionData = dict(
@@ -95,8 +99,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             settingsButton=dict(
                 gravity="trailing"
             ),
-            collectionView=dict(
-                backgroundColor=(1, 1, 1, 1),
+            itemView=dict(
+                backgroundColor=(0, 0, 1, 1),
                 width=">=300",
                 height=">=300"
             )
@@ -110,33 +114,33 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             size=(500, 500),
             minSize=(400, 400)
         )
-        collectionView = self.w.getItem("collectionView")
-        collectionView.setInset((collectionInset, collectionInset))
 
         self.settings = dict(
             discreteLocations=[],
             discreteLocation=None,
             axisNames=[],
             xAxisName=None,
-            yAxisName=None,
-            sizeMode="fit",
-            pointSize=100,
-            columnSettings=dict(
+            xAxisSettings=dict(
                 locations=None,
                 steps=5
             ),
-            rowSettings=dict(
+            yAxisName=None,
+            yAxisSettings=dict(
                 locations=None,
                 steps=5
             ),
             columnWidthMode="fit",
-            usePrepolator=True,
+            xAlignment="center",
+
+            unprocessedGlyphNames=[],
             glyphNames=[],
+
             showSources=False,
-            highlightSources=False,
-            highlightUnsmooths=False,
+
+            usePrepolator=True,
+            highlightSources=True,
+            highlightUnsmooths=True,
             unsmoothThreshold=2.0,
-            xAlignment="center"
         )
         self.loadOperatorOptions()
         self.parseTextInput()
@@ -144,7 +148,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def started(self):
         self.w.open()
         self.buildItems()
-        self.populateItems()
+        self.prepareItems()
+        self.updateItems()
 
     def destroy(self):
         self.clearObservedAdjunctObjects()
@@ -221,117 +226,107 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             self.w.getItemValue("textField"),
             cmap=self.ufoOperator.getCharacterMapping()
         )
-        self.settings["glyphNames"] = glyphNames
+        self.settings["unprocessedGlyphNames"] = glyphNames
 
     def buildItems(self):
-        collectionView = self.w.getItem("collectionView")
+        gridView = self.w.getItem("gridView")
         settings = self.settings
-        # glyph names
-        glyphNames = settings["glyphNames"]
-        if not glyphNames:
-            collectionView.set([])
-            return
-        currentGlyphName = ""
-        glyph = CurrentGlyph()
-        if glyph is not None:
-            currentGlyphName = glyph.name
-        replacements = {"/?" : currentGlyphName}
-        glyphNames = [replacements.get(i, i) for i in glyphNames]
-        settings["glyphNames"] = glyphNames
-        # location
         discreteLocation = settings["discreteLocation"]
         xAxisName = settings["xAxisName"]
         yAxisName = settings["yAxisName"]
+        showSources = settings["showSources"]
+        # establish the values for unchosen axes
         defaultAxes = {}
-        for axis in self.ufoOperator.axes:
+        for axis in self.ufoOperator.getOrderedContinuousAxes():
+            name = axis.name
             if axis.name in (xAxisName, yAxisName):
-                continue
-            if discreteLocation and axis.name in discreteLocation:
                 continue
             defaultAxes[axis.name] = axis.default
         baseLocation = {}
         if discreteLocation:
             baseLocation.update(discreteLocation)
         baseLocation.update(defaultAxes)
-        # columns and rows
-        columnSettings = settings["columnSettings"]
-        columnLocations = []
+        # column count
+        sortColumnLocations = False
+        columnSettings = settings["xAxisSettings"]
         if columnSettings["locations"]:
             columnLocations = columnSettings["locations"]
         else:
+            sortColumnLocations = True
             columnLocations = self._makeAxisSteps(xAxisName, columnSettings["steps"])
-        rowSettings = settings["rowSettings"]
-        rowLocations = []
-        if rowSettings["locations"]:
-            rowLocations = rowSettings["locations"]
+        # row count
+        sortRowLocations = False
+        rowSettings = settings["yAxisSettings"]
+        if not yAxisName:
+            rowLocations = [0]
         else:
-            rowLocations = self._makeAxisSteps(yAxisName, rowSettings["steps"])
-        columnLocations = set(columnLocations)
-        rowLocations = set(rowLocations)
+            sortRowLocations = True
+            if rowSettings["locations"]:
+                rowLocations = rowSettings["locations"]
+            else:
+                rowLocations = self._makeAxisSteps(yAxisName, rowSettings["steps"])
+        # sources
         sourceLocations = []
         for source in self.ufoOperator.findSourceDescriptorsForDiscreteLocation(discreteLocation):
-            sourceLocations.append(source.location)
-        if settings["showSources"]:
-            for sourceLocation in sourceLocations:
-                columnLocations.add(sourceLocation[xAxisName])
+            location = source.location
+            sourceLocations.append(location)
+            if showSources:
+                columnLocation = location[xAxisName]
+                if columnLocation not in columnLocations:
+                    columnLocations.append(columnLocation)
+                    sortColumnLocations = True
+                if yAxisName:
+                    rowLocation = location[yAxisName]
+                    if rowLocation not in rowLocations:
+                        sortRowLocations = True
+                        rowLocations.append(rowLocation)
+        if sortColumnLocations:
+            columnLocations.sort()
+        if sortRowLocations:
+            rowLocations.sort()
+        # make the layers
+        self.items = []
+        self.itemsInColumns = {}
+        self.itemsInRows = {}
+        for columnIndex, columnLocation in enumerate(columnLocations):
+            if columnIndex not in self.itemsInColumns:
+                self.itemsInColumns[columnIndex] = []
+            for rowIndex, rowLocation in enumerate(rowLocations):
+                if rowIndex not in self.itemsInRows:
+                    self.itemsInRows[rowIndex] = []
+                location = dict(baseLocation)
+                location[xAxisName] = columnLocation
                 if yAxisName is not None:
-                    rowLocations.add(sourceLocation[yAxisName])
-        columnLocations = list(sorted(columnLocations))
-        rowLocations = list(sorted(rowLocations))
-        # adjunct glyphs
-        adjunctGlyphs = set()
-        for glyphName in glyphNames:
-            sources, unicodes = self.ufoOperator.collectSourcesForGlyph(
-                glyphName,
-                discreteLocation=discreteLocation,
-                decomposeComponents=False,
-                asMathGlyph=False
-            )
-            for source in sources:
-                l, g, d = source
-                adjunctGlyphs.add(g)
-        for glyph in self.adjunctGlyphs:
-            self.removeObservedAdjunctObject(glyph)
-        for glyph in adjunctGlyphs:
-            self.addAdjunctObjectToObserve(glyph)
-        self.adjunctGlyphs = adjunctGlyphs
-        # make the items
-        items = []
-        for rowLocation in rowLocations:
-            row = []
-            for columnLocation in columnLocations:
-                itemLocation = dict(baseLocation)
-                itemLocation[xAxisName] = columnLocation
-                if yAxisName is not None:
-                    itemLocation[yAxisName] = rowLocation
-                isSource = itemLocation in sourceLocations
-                item = collectionView.makeItem()
-                item.getCALayer().setGeometryFlipped_(True)
-                item.setSize((50, 50))
-                # item.setBackgroundColor((1, 0, 0, 0.5))
-                item.setCornerRadius(5)
-                if isSource and settings["highlightSources"]:
-                    item.setBorderColor(self.sourceBorderColor)
-                item.setBorderWidth(1)
-                item.setAllowBreakBefore(False)
-                item.setForceBreakAfter(False)
-                glyphContainer = merz.Base(name="glyphContainer")
-                item.appendLayer("glyphContainer", glyphContainer)
-                glyphPathLayer = glyphContainer.appendPathSublayer(
-                    name="glyphPathLayer",
-                    fillColor=self.fillColor
+                    location[yAxisName] = rowLocation
+                # base
+                base = merz.Base(
+                    borderWidth=1,
+                    cornerRadius=10,
+                    # backgroundColor=(1, 0, 0, 0.25)
                 )
-                unsmoothHighlightLayer = glyphContainer.appendBaseSublayer(
-                    name="unsmoothHighlightLayer"
+                base.setInfoValue("location", location)
+                base.setInfoValue("isSource", location in sourceLocations)
+                base.setInfoValue("columnIndex", columnIndex)
+                base.setInfoValue("rowIndex", rowIndex)
+                glyphContainerLayer = base.appendBaseSublayer(
+                    name="glyphContainer"
                 )
-                items.append(item)
-                row.append(item)
-                item.SRLocation = itemLocation
-                item.SRIsSource = isSource
-            row[0].setAllowBreakBefore(True)
-            row[-1].setForceBreakAfter(True)
-        collectionView.set(items)
-        collectionView.setAlignment(settings["xAlignment"])
+                # glyph path
+                glyphContainerLayer.appendPathSublayer(
+                    name="glyphPath"
+                )
+                # post-processing
+                glyphContainerLayer.appendBaseSublayer(
+                    name="unsmoothHighlights"
+                )
+                # store
+                self.items.append(base)
+                self.itemsInColumns[columnIndex].append(base)
+                self.itemsInRows[rowIndex].append(base)
+        container = gridView.getMerzView().getMerzContainer()
+        container.clearSublayers()
+        for item in self.items:
+            container.appendSublayer(item)
 
     def _makeAxisSteps(self, axisName, steps):
         axis = self.ufoOperator.getAxis(axisName)
@@ -344,17 +339,21 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             locations.append(location)
         return locations
 
-    def populateItems(self):
+    adjunctGlyphs = None
+
+    def prepareItems(self):
         settings = self.settings
-        glyphNames = settings["glyphNames"]
-        xAxisName = settings["xAxisName"]
-        columnWidthMode = settings["columnWidthMode"]
-        sizeMode = settings["sizeMode"]
         discreteLocation = settings["discreteLocation"]
-        collectionView = self.w.getItem("collectionView")
-        if not glyphNames:
-            return
+        columnWidthMode = settings["columnWidthMode"]
+        unprocessedGlyphNames = settings["unprocessedGlyphNames"]
         desiredSuffix = settings["glyphNameSuffix"]
+        # process the glyph names
+        currentGlyphName = ""
+        glyph = CurrentGlyph()
+        if glyph is not None:
+            currentGlyphName = glyph.name
+        replacements = {"/?" : currentGlyphName}
+        glyphNames = [replacements.get(i, i) for i in unprocessedGlyphNames]
         suffixToApply = None
         if desiredSuffix == "_none_":
             suffixToApply = None
@@ -371,60 +370,73 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                     glyphName = t
                 suffixedGlyphNames.append(glyphName)
             glyphNames = suffixedGlyphNames
+        settings["glyphNames"] = glyphNames
+        # observe sources as adjunct glyphs
+        adjunctGlyphs = set()
+        for glyphName in glyphNames:
+            sources, unicodes = self.ufoOperator.collectSourcesForGlyph(
+                glyphName,
+                discreteLocation=discreteLocation,
+                decomposeComponents=False,
+                asMathGlyph=False
+            )
+            for source in sources:
+                l, g, d = source
+                adjunctGlyphs.add(g)
+        for glyph in self.adjunctGlyphs:
+            self.removeObservedAdjunctObject(glyph)
+        for glyph in adjunctGlyphs:
+            self.addAdjunctObjectToObserve(glyph)
+        self.adjunctGlyphs = adjunctGlyphs
+
+    def updateItems(self):
+        gridView = self.w.getItem("gridView")
+        settings = self.settings
+        glyphNames = settings["glyphNames"]
+        discreteLocation = settings["discreteLocation"]
+        xAxisName = settings["xAxisName"]
+        yAxisName = settings["yAxisName"]
+        columnWidthMode = settings["columnWidthMode"]
+        highlightSources = settings["highlightSources"]
+        checkSmooths = settings["highlightUnsmooths"]
+        unsmoothThreshold = settings["unsmoothThreshold"]
+        # run prepolator
         self._runPrepolator(glyphNames)
-        items = collectionView.get()
-        keyToLocation = {}
-        keyToItem = {}
-        keyToGlyph = {}
-        keyToInfo = {}
-        descenders = set()
-        upms = None
-        fitWidthCalculator = {}
-        monoWidthCalculator = set()
-        for item in items:
-            location = item.SRLocation
-            # make info
+        # build the glyphs in the items
+        columnWidthCalculator = {}
+        for columnIndex in self.itemsInColumns:
+            columnWidthCalculator[columnIndex] = []
+        for item in self.items:
+            location = item.getInfoValue("location")
             info = self.ufoOperator.makeOneInfo(location)
-            descenders.add(info.descender)
-            upm = info.unitsPerEm
-            # make glyph
-            compiledGlyph = compileGlyph(
+            glyph = compileGlyph(
                 glyphNames=glyphNames,
                 ufoOperator=self.ufoOperator,
                 location=location,
                 incompatibleGlyphs=self.incompatibleGlyphs,
+                smooth=False
             )
-            l = location[xAxisName]
-            if l not in fitWidthCalculator:
-                fitWidthCalculator[l] = set()
-            columnWidth = compiledGlyph.width
-            fitWidthCalculator[l].add(columnWidth)
-            monoWidthCalculator.add(columnWidth)
-            key = frozenset(location.items())
-            keyToLocation[key] = location
-            keyToItem[key] = item
-            keyToGlyph[key] = compiledGlyph
-            keyToInfo[key] = info
-        # update the collection scale
-        itemPadding = upm * 0.1
-        columnCount = len(fitWidthCalculator)
-        if columnWidthMode == "fit":
-            locationToWidth = {}
-            for xLocation, glyphWidths in fitWidthCalculator.items():
-                locationToWidth[xLocation] = max(glyphWidths) + (itemPadding * 2)
-            self.widestRow = sum(locationToWidth.values())
+            scale = itemPointSize / info.unitsPerEm
+            item.setInfoValue("glyph", glyph)
+            item.setInfoValue("info", info)
+            item.setInfoValue("scale", scale)
+            columnIndex = item.getInfoValue("columnIndex")
+            columnWidthCalculator[columnIndex].append(glyph.width * scale)
+        # measure the columns
+        if columnWidthMode == "mono":
+            allWidths = []
+            for w in columnWidthCalculator.values():
+                allWidths += w
+            columnWidth = max(w)
+            columnWidth += itemPadding * 2
+            columnWidths = [columnWidth for i in columnWidthCalculator]
         else:
-            columnWidth = max(monoWidthCalculator) + (itemPadding * 2)
-            self.widestRow = columnWidth * len(fitWidthCalculator)
-        settings["itemHeight"] = itemHeight = upm + (itemPadding * 2)
-        settings["upm"] = upm
-        self.updateCollectionViewScale()
-        descender = min(descenders)
-        # gather smooth data
-        checkSmooths = settings["highlightUnsmooths"]
-        unsmoothThreshold = settings["unsmoothThreshold"]
-        unsmoothHighlightSize = upm * 0.1
-        unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
+            columnWidths = []
+            for k, v in sorted(columnWidthCalculator.items()):
+                columnWidth = max(v)
+                columnWidth += itemPadding * 2
+                columnWidths.append(columnWidth)
+        # post-processing prep
         if checkSmooths:
             defaultLocation = self.ufoOperator.newDefaultLocation(discreteLocation=discreteLocation)
             model = compileGlyph(
@@ -432,32 +444,57 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 ufoOperator=self.ufoOperator,
                 location=defaultLocation,
                 incompatibleGlyphs=self.incompatibleGlyphs,
+                smooth=True
             )
             modelSmooths = []
             for contourIndex, contour in enumerate(model.contours):
                 for segmentIndex, segment in enumerate(contour.segments):
                     if segment.smooth:
                         modelSmooths.append((contourIndex, segmentIndex))
-        # populate the items
-        for key, item in keyToItem.items():
-            glyph = keyToGlyph[key]
-            location = keyToLocation[key]
-            if columnWidthMode == "fit":
-                columnWidth = locationToWidth[location[xAxisName]]
+        # set the item values
+        itemHeight = itemPointSize + (itemPadding * 2)
+        for item in self.items:
+            columnIndex = item.getInfoValue("columnIndex")
+            rowIndex = item.getInfoValue("rowIndex")
+            glyph = item.getInfoValue("glyph")
+            info = item.getInfoValue("info")
+            isSource = item.getInfoValue("isSource")
+            scale = item.getInfoValue("scale")
+            columnWidth = columnWidths[columnIndex]
+            # the view coordinates start at the bottom,
+            # so flip the row index to calculate the
+            # visually proper y location.
+            rowIndex = len(self.itemsInRows) - rowIndex - 1
+            x = gridInset
+            if columnIndex > 0:
+                x += sum(columnWidths[:columnIndex])
+            x += itemSpacing * columnIndex
+            y = gridInset
+            y += itemHeight * rowIndex
+            y += itemSpacing * rowIndex
             item.setSize((columnWidth, itemHeight))
-            container = item.getLayer("glyphContainer")
-            pathLayer = container.getSublayer("glyphPathLayer")
-            unsmoothHighlightLayer = container.getSublayer("unsmoothHighlightLayer")
-            pathYOffset = itemPadding - descender
-            pathXOffset = (columnWidth - glyph.width) / 2
-            with container.propertyGroup():
-                container.setSize(("width", "height"))
-            with pathLayer.propertyGroup():
-                pathLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-                pathLayer.setPosition((pathXOffset, pathYOffset))
-            unsmoothHighlightLayer.setPosition((pathXOffset, pathYOffset))
+            item.setPosition((x, y))
+            # update the source indicator
+            if highlightSources and isSource:
+                item.setBorderColor(self.sourceBorderColor)
+            else:
+                item.setBorderColor(None)
+            # update the glyph container
+            x = (columnWidth - (glyph.width * scale)) / 2
+            y = itemPadding
+            y += -info.descender * scale
+            glyphContainerLayer = item.getSublayer("glyphContainer")
+            glyphContainerLayer.addSublayerScaleTransformation(scale, "pointSizeScale")
+            glyphContainerLayer.setPosition((x, y))
+            # set the path
+            glyphPathLayer = glyphContainerLayer.getSublayer("glyphPath")
+            glyphPathLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+            # set the unsmooths
+            unsmoothHighlightLayer = glyphContainerLayer.getSublayer("unsmoothHighlights")
+            unsmoothHighlightLayer.clearSublayers()
             if checkSmooths:
-                unsmoothHighlightLayer.clearSublayers()
+                unsmoothHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
+                unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
                 for contourIndex, segmentIndex in modelSmooths:
                     contour = glyph.contours[contourIndex]
                     v = getRelativeSmoothness(
@@ -477,23 +514,14 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                             strokeColor=(1, 0, 0, v),
                             strokeWidth=1
                         )
-
-        # set
-        scale = collectionView.getScale()
-        collectionView.set(items)
-
-    def updateCollectionViewScale(self, reflow=False):
-        collectionView = self.w.getItem("collectionView")
-        settings = self.settings
-        if settings["sizeMode"] == "fit":
-            widestRow = self.widestRow
-            documentWidth = collectionView.getNSScrollView().documentVisibleRect().size.width
-            documentWidth -= collectionInset * 2
-            scale = documentWidth / widestRow
-        else:
-            scale = settings["pointSize"] / settings["upm"]
-        collectionView.setScale(scale)
-        collectionView.setLineHeight(settings["itemHeight"] * scale)
+        # set the grid size
+        width = gridInset * 2
+        width += sum(columnWidths)
+        width += itemSpacing * (len(columnWidths) - 1)
+        height = gridInset * 2
+        height += itemHeight * len(self.itemsInRows)
+        height += itemSpacing * (len(self.itemsInRows) - 1)
+        gridView.setMerzViewSize((width, height))
 
     # Pre-Processing
 
@@ -527,8 +555,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     def textFieldCallback(self, sender):
         self.parseTextInput()
-        self.buildItems()
-        self.populateItems()
+        self.prepareItems()
+        self.updateItems()
 
     # Settings
 
@@ -542,28 +570,28 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     def _settingsPopoverCallback(self):
         self.buildItems()
-        self.populateItems()
+        self.prepareItems()
+        self.updateItems()
 
     # RoboFont Observations
 
     def roboFontAppearanceChanged(self, info):
-        self.loadColors()
-        self.buildItems()
-        self.populateItems()
+        self.updateItems()
 
     def roboFontDidSwitchCurrentGlyph(self, info):
-        self.parseTextInput()
-        self.buildItems()
-        self.populateItems()
+        self.prepareItems()
+        self.updateItems()
 
     # DSE Observations
 
     def designspaceEditorSourcesDidChanged(self, info):
-        self.buildGrid()
+        self.prepareItems()
+        self.updateItems()
 
     def designspaceEditorAxesDidChange(self, info):
-        self.loadOperatorOptions()
-        self.buildGrid()
+        self.buildItems()
+        self.prepareItems()
+        self.updateItems()
 
     # XXX this only works if this object was created
     # with registerRoboFontSubscriber. instead, the
@@ -574,16 +602,11 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     # Glyph Observations
 
     def adjunctGlyphDidChangeOutline(self, info):
-        self.populateItems()
+        self.updateItems()
 
     def adjunctGlyphDidChangeMetrics(self, info):
-        self.buildItems()
-        self.populateItems()
+        self.updateItems()
 
-    # Window Observations
-
-    def windowDidResize(self, sender):
-        self.updateCollectionViewScale()
 
 
 def compileGlyph(
@@ -593,6 +616,10 @@ def compileGlyph(
         incompatibleGlyphs=[],
         smooth=False
     ):
+    # remove bogus y axis value
+    if None in location:
+        location = dict(location)
+        del location[None]
     compiledGlyph = RGlyph()
     compiledGlyph.width = 0
     for glyphName in glyphNames:
@@ -653,13 +680,8 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         yAxisIndex = 0
         if settings["yAxisName"] in yAxisNames:
             yAxisIndex = yAxisNames.index(settings["yAxisName"])
-        if settings["sizeMode"] == "fit":
-            sizeMode = 0
-        else:
-            sizeMode = 1
-        pointSize = settings["pointSize"]
-        columnSettings = rangeToString(settings["columnSettings"])
-        rowSettings = rangeToString(settings["rowSettings"])
+        xAxisSettings = rangeToString(settings["xAxisSettings"])
+        yAxisSettings = rangeToString(settings["yAxisSettings"])
         if settings["columnWidthMode"] == "fit":
             columnWidthMode = 0
         else:
@@ -693,12 +715,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
 
         !§ Display
-
-        : Size:
-        ( ) Fit                 @sizeRadioButtons
-        (X) Point Size
-        :
-        [__](±)                 @pointSizeField
 
         : Discrete Location:
         (Choose ...)            @discreteLocationPopUpButton
@@ -750,17 +766,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
                 items=suffixOptions,
                 selected=suffixIndex
             ),
-            sizeRadioButtons=dict(
-                selected=sizeMode
-            ),
-            pointSizeField=dict(
-                valueType="integer",
-                minValue=10,
-                value=pointSize,
-                maxValue=500,
-                valueIncrement=25,
-                textFieldWidth=numberFieldWidth
-            ),
             discreteLocationPopUpButton=dict(
                 items=discreteLocationNames,
                 selected=discreteLocationIndex
@@ -774,10 +779,10 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
                 selected=yAxisIndex
             ),
             columnsField=dict(
-                value=columnSettings
+                value=xAxisSettings
             ),
             rowsField=dict(
-                value=rowSettings
+                value=yAxisSettings
             ),
             columnWidthsRadioButtons=dict(
                 selected=columnWidthMode
@@ -822,19 +827,17 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         values = self.w.getItemValues()
         settings = self.settings
         settings["glyphNameSuffix"] = self.suffixes[values["textSuffixPopUpButton"]]
-        settings["sizeMode"] = ["fit", "size"][values["sizeRadioButtons"]]
-        settings["pointSize"] = values["pointSizeField"]
         if settings["discreteLocations"]:
             settings["discreteLocation"] = settings["discreteLocations"][values["discreteLocationPopUpButton"]]
         settings["xAxisName"] = settings["axisNames"][values["xAxisPopUpButton"]]
         if len(settings["axisNames"]) > 1:
             settings["yAxisName"] = settings["axisNames"][values["yAxisPopUpButton"]]
-        columnSettings = parseRangeInput(values["columnsField"])
-        if columnSettings:
-            settings["columnSettings"] = columnSettings
-        rowSettings = parseRangeInput(values["rowsField"])
-        if rowSettings:
-            settings["rowSettings"] = rowSettings
+        xAxisSettings = parseRangeInput(values["columnsField"])
+        if xAxisSettings:
+            settings["xAxisSettings"] = xAxisSettings
+        yAxisSettings = parseRangeInput(values["rowsField"])
+        if yAxisSettings:
+            settings["yAxisSettings"] = yAxisSettings
         settings["columnWidthMode"] = ["fit", "mono"][values["columnWidthsRadioButtons"]]
         settings["xAlignment"] = ["left", "center", "right"][values["xAlignmentRadioButtons"]]
         settings["showSources"] = values["showSourcesCheckbox"]
