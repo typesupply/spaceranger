@@ -119,7 +119,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.gridView = self.w.getItem("gridView")
         self.gridContainer = self.gridView.getMerzContainer()
         self.gridItemContainer = self.gridContainer.appendBaseSublayer(name="gridItemContainer")
-        self.gridContainer.setContainerScale(2.0)
+        self.gridContainer.setContainerScale(1.0)
 
         self.settings = dict(
             discreteLocations=[],
