@@ -116,6 +116,11 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             minSize=(400, 400)
         )
 
+        self.gridView = self.w.getItem("gridView")
+        self.gridContainer = self.gridView.getMerzContainer()
+        self.gridItemContainer = self.gridContainer.appendBaseSublayer(name="gridItemContainer")
+        self.gridContainer.setContainerScale(2.0)
+
         self.settings = dict(
             discreteLocations=[],
             discreteLocation=None,
@@ -165,7 +170,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.settings["unprocessedGlyphNames"] = glyphNames
 
     def buildItems(self):
-        gridView = self.w.getItem("gridView")
+        gridView = self.gridView
+        gridItemContainer = self.gridItemContainer
         settings = self.settings
         discreteLocation = settings["discreteLocation"]
         xAxisName = settings["xAxisName"]
@@ -259,10 +265,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 self.items.append(base)
                 self.itemsInColumns[columnIndex].append(base)
                 self.itemsInRows[rowIndex].append(base)
-        container = gridView.getMerzView().getMerzContainer()
-        container.clearSublayers()
+        gridItemContainer.clearSublayers()
         for item in self.items:
-            container.appendSublayer(item)
+            gridItemContainer.appendSublayer(item)
 
     def _makeAxisSteps(self, axisName, steps):
         axis = self.ufoOperator.getAxis(axisName)
@@ -326,7 +331,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.adjunctGlyphs = adjunctGlyphs
 
     def updateItems(self):
-        gridView = self.w.getItem("gridView")
+        gridView = self.gridView
+        gridContainer = self.gridContainer
+        gridItemContainer = self.gridItemContainer
         settings = self.settings
         glyphNames = settings["glyphNames"]
         discreteLocation = settings["discreteLocation"]
@@ -424,7 +431,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             glyphContainerLayer.setPosition((x, y))
             # set the path
             glyphPathLayer = glyphContainerLayer.getSublayer("glyphPath")
-            glyphPathLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+            with glyphPathLayer.propertyGroup():
+                glyphPathLayer.setFillColor(self.fillColor)
+                glyphPathLayer.setPath(glyph.getRepresentation("merz.CGPath"))
             # set the unsmooths
             unsmoothHighlightLayer = glyphContainerLayer.getSublayer("unsmoothHighlights")
             unsmoothHighlightLayer.clearSublayers()
@@ -457,7 +466,12 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         height = gridInset * 2
         height += itemHeight * len(self.itemsInRows)
         height += itemSpacing * (len(self.itemsInRows) - 1)
-        gridView.setMerzViewSize((width, height))
+        gridItemContainer.setSize((width, height))
+        # set the container size
+        zoomScale = self.gridContainer.getContainerScale()
+        gridContainer.setSize((width * zoomScale, height * zoomScale))
+        gridView.setMerzViewSize((width * zoomScale, height * zoomScale))
+        gridContainer.setBackgroundColor(self.backgroundColor)
 
     # Pre-Processing
 
@@ -577,6 +591,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     # RoboFont Observations
 
     def roboFontAppearanceChanged(self, info):
+        self.loadColors()
         self.updateItems()
 
     def roboFontDidSwitchCurrentGlyph(self, info):
@@ -613,23 +628,26 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def acceptsFirstResponder(self, sender):
         return True
 
-    # def magnifyWithEvent(self, sender, event):
-    #     gridView = self.w.getItem("gridView")
-    #     minScale = 0.25
-    #     maxScale = 5.0
-    #     magnificationDelta = event.magnification()
-    #     if magnificationDelta < 0:
-    #         factor = 0.9
-    #     else:
-    #         factor = 1.1
-    #     container = gridView.getMerzContainer()
-    #     scale = container.getContainerScale()
-    #     scale *= factor
-    #     if scale > maxScale:
-    #         scale = maxScale
-    #     elif scale < minScale:
-    #         scale = minScale
-    #     container.setContainerScale(scale)
+    def magnifyWithEvent(self, sender, event):
+        gridView = self.gridView
+        gridContainer = self.gridContainer
+        gridItemContainer = self.gridItemContainer
+        minScale = 0.25
+        maxScale = 5.0
+        magnificationDelta = event.magnification()
+        if magnificationDelta < 0:
+            factor = 0.9
+        else:
+            factor = 1.1
+        scale = gridContainer.getContainerScale()
+        scale *= factor
+        if scale > maxScale:
+            scale = maxScale
+        elif scale < minScale:
+            scale = minScale
+        gridContainer.setContainerScale(scale)
+        width, height = gridItemContainer.getSize()
+        gridView.setMerzViewSize((width * scale, height * scale))
 
 
 def compileGlyph(
