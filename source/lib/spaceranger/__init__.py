@@ -148,8 +148,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             showSources=False,
 
             usePrepolator=True,
-            highlightSources=True,
-            highlightUnsmooths=True,
+            highlightSources=False,
+            highlightUnsmooths=False,
             unsmoothThreshold=2.0,
         )
         self.loadOperatorOptions()
@@ -330,7 +330,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             glyphNames = suffixedGlyphNames
         settings["glyphNames"] = glyphNames
         # observe sources as adjunct glyphs
-        adjunctGlyphs = set()
+        newAdjunctGlyphs = set()
         for glyphName in glyphNames:
             sources, unicodes = self.ufoOperator.collectSourcesForGlyph(
                 glyphName,
@@ -340,12 +340,14 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             )
             for source in sources:
                 l, g, d = source
-                adjunctGlyphs.add(g)
+                newAdjunctGlyphs.add(g)
         for glyph in self.adjunctGlyphs:
-            self.removeObservedAdjunctObject(glyph)
-        for glyph in adjunctGlyphs:
-            self.addAdjunctObjectToObserve(glyph)
-        self.adjunctGlyphs = adjunctGlyphs
+            if glyph not in newAdjunctGlyphs:
+                self.removeObservedAdjunctObject(glyph)
+        for glyph in newAdjunctGlyphs:
+            if glyph not in self.adjunctGlyphs:
+                self.addAdjunctObjectToObserve(glyph)
+        self.adjunctGlyphs = newAdjunctGlyphs
 
     def updateItems(self):
         gridView = self.gridView
@@ -657,8 +659,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         gridView = self.gridView
         gridContainer = self.gridContainer
         gridItemContainer = self.gridItemContainer
-        minScale = 0.25
-        maxScale = 5.0
+        minScale = 0.5
+        maxScale = 10.0
         magnificationDelta = event.magnification()
         if magnificationDelta < 0:
             factor = 0.9
@@ -699,7 +701,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 continue
             for font, fontLocation in self.ufoOperator.getFonts():
                 if location == fontLocation:
-                    font.asFontParts().openInterface()
+                    if not font.hasInterface():
+                        font.asFontParts().openInterface()
                     break
 
     def acceptsMouseMoved(self, sender):
@@ -833,6 +836,13 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         : Columns:
         [__]                    @columnsField
+
+#         : Column Mode:
+#         (X) Range
+#         ( ) Locations
+#
+#         :
+#         [__]
 
         : Rows:
         [__]                    @rowsField
