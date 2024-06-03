@@ -128,18 +128,20 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
         self.settings = dict(
             discreteLocations=[],
-            discreteLocation=None,
             axisNames=[],
+
+            discreteLocation=None,
+
             xAxisName=None,
-            xAxisSettings=dict(
-                locations=None,
-                steps=5
-            ),
+            xAxisMode="count", # count | locations
+            xAxisCount=5,
+            xAxisLocations=[-1000, 0, 1000],
+
             yAxisName=None,
-            yAxisSettings=dict(
-                locations=None,
-                steps=5
-            ),
+            yAxisMode="count", # count | locations
+            yAxisCount=5,
+            yAxisLocations=[-1000, 0, 1000],
+
             columnWidthMode="fit",
 
             unprocessedGlyphNames=[],
@@ -194,23 +196,19 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         baseLocation.update(defaultAxes)
         # column count
         sortColumnLocations = False
-        columnSettings = settings["xAxisSettings"]
-        if columnSettings["locations"]:
-            columnLocations = columnSettings["locations"]
+        if settings["xAxisMode"] == "locations":
+            columnLocations = settings["xAxisLocations"]
         else:
-            sortColumnLocations = True
-            columnLocations = self._makeAxisSteps(xAxisName, columnSettings["steps"])
+            columnLocations = self._makeAxisSteps(xAxisName, settings["xAxisCount"])
         # row count
         sortRowLocations = False
-        rowSettings = settings["yAxisSettings"]
         if not yAxisName:
             rowLocations = [0]
         else:
-            sortRowLocations = True
-            if rowSettings["locations"]:
-                rowLocations = rowSettings["locations"]
+            if settings["yAxisMode"] == "locations":
+                rowLocations = settings["yAxisLocations"]
             else:
-                rowLocations = self._makeAxisSteps(yAxisName, rowSettings["steps"])
+                rowLocations = self._makeAxisSteps(yAxisName, settings["yAxisCount"])
         # sources
         sourceLocations = []
         for source in self.ufoOperator.findSourceDescriptorsForDiscreteLocation(discreteLocation):
@@ -784,14 +782,14 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         xAxisIndex = 0
         if settings["xAxisName"] in xAxisNames:
             xAxisIndex = xAxisNames.index(settings["xAxisName"])
+        xAxisMode = ["count", "locations"].index(settings["xAxisMode"])
         yAxisNames = []
         if len(xAxisNames) > 1:
             yAxisNames = xAxisNames
         yAxisIndex = 0
         if settings["yAxisName"] in yAxisNames:
             yAxisIndex = yAxisNames.index(settings["yAxisName"])
-        xAxisSettings = rangeToString(settings["xAxisSettings"])
-        yAxisSettings = rangeToString(settings["yAxisSettings"])
+        yAxisMode = ["count", "locations"].index(settings["yAxisMode"])
         if settings["columnWidthMode"] == "fit":
             columnWidthMode = 0
         else:
@@ -828,28 +826,35 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         : Discrete Location:
         (Choose ...)            @discreteLocationPopUpButton
 
+        ---
+
         : X Axis:
         (Choose ...)            @xAxisPopUpButton
+
+        : Mode:
+        (X) Count               @xAxisModeRadioButtons
+        ( ) Locations
+
+        :
+        [__]                    @xAxisValueField
+
+        : Widths:
+        (X) Fit Content         @columnWidthsRadioButtons
+        ( ) Monospace
+
+        ---
 
         : Y Axis:
         (Choose ...)            @yAxisPopUpButton
 
-        : Columns:
-        [__]                    @columnsField
+        : Mode:
+        (X) Count               @yAxisModeRadioButtons
+        ( ) Locations
 
-#         : Column Mode:
-#         (X) Range
-#         ( ) Locations
-#
-#         :
-#         [__]
+        :
+        [__]                    @yAxisValueField
 
-        : Rows:
-        [__]                    @rowsField
-
-        : Column Widths:
-        (X) Fit Content         @columnWidthsRadioButtons
-        ( ) Monospace
+        ---
 
         : Sources:
         [ ] Insert              @showSourcesCheckbox
@@ -873,40 +878,47 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
                 titleColumnWidth=140,
                 itemColumnWidth=200,
             ),
+
             textSuffixPopUpButton=dict(
                 items=suffixOptions,
                 selected=suffixIndex
             ),
+
             discreteLocationPopUpButton=dict(
                 items=discreteLocationNames,
                 selected=discreteLocationIndex
             ),
+
             xAxisPopUpButton=dict(
                 items=xAxisNames,
                 selected=xAxisIndex
             ),
-            yAxisPopUpButton=dict(
-                items=yAxisNames,
-                selected=yAxisIndex
-            ),
-            columnsField=dict(
-                value=xAxisSettings
-            ),
-            rowsField=dict(
-                value=yAxisSettings
+            xAxisModeRadioButtons=dict(
+                selected=xAxisMode
             ),
             columnWidthsRadioButtons=dict(
                 selected=columnWidthMode
             ),
+
+            yAxisPopUpButton=dict(
+                items=yAxisNames,
+                selected=yAxisIndex
+            ),
+            yAxisModeRadioButtons=dict(
+                selected=yAxisMode
+            ),
+
             showSourcesCheckbox=dict(
                 value=showSources
             ),
             highlightSourcesCheckbox=dict(
                 value=highlightSources
             ),
+
             usePrepolatorCheckbox=dict(
                 value=usePrepolator
             ),
+
             highlightUnsmoothsCheckbox=dict(
                 value=highlightUnsmooths
             ),
@@ -924,12 +936,68 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             parent=parent,
             controller=self
         )
+        self.xAxisModeRadioButtonsCallback(self.w.getItem("xAxisModeRadioButtons"))
+        self.yAxisModeRadioButtonsCallback(self.w.getItem("yAxisModeRadioButtons"))
 
     def started(self):
         self.w.open()
 
     def destroy(self):
         self.callback = None
+
+    def xAxisModeRadioButtonsCallback(self, sender):
+        settings = self.settings
+        if sender.get() == 0:
+            settings["xAxisMode"] = "count"
+            value = str(settings["xAxisCount"])
+        else:
+            settings["xAxisMode"] = "locations"
+            value = " ".join([str(i) for i in settings["xAxisLocations"]])
+        self.w.setItemValue("xAxisValueField", value)
+        self.contentCallback(sender)
+
+    def xAxisValueFieldCallback(self, sender):
+        settings = self.settings
+        mode = self.w.getItemValue("xAxisModeRadioButtons")
+        value = sender.get()
+        if mode == 0:
+            value = parseRangeInput(value)
+            if value is None:
+                return
+            settings["xAxisCount"] = value
+        else:
+            value = parseLocationInput(value)
+            if value is None:
+                return
+            settings["xAxisLocations"] = value
+        self.contentCallback(sender)
+
+    def yAxisModeRadioButtonsCallback(self, sender):
+        settings = self.settings
+        if sender.get() == 0:
+            settings["yAxisMode"] = "count"
+            value = str(settings["yAxisCount"])
+        else:
+            settings["yAxisMode"] = "locations"
+            value = " ".join([str(i) for i in settings["yAxisLocations"]])
+        self.w.setItemValue("yAxisValueField", value)
+        self.contentCallback(sender)
+
+    def yAxisValueFieldCallback(self, sender):
+        settings = self.settings
+        mode = self.w.getItemValue("yAxisModeRadioButtons")
+        value = sender.get()
+        if mode == 0:
+            value = parseRangeInput(value)
+            if value is None:
+                return
+            settings["yAxisCount"] = value
+        else:
+            value = parseLocationInput(value)
+            if value is None:
+                return
+            settings["yAxisLocations"] = value
+        self.contentCallback(sender)
 
     def contentCallback(self, sender):
         values = self.w.getItemValues()
@@ -940,12 +1008,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["xAxisName"] = settings["axisNames"][values["xAxisPopUpButton"]]
         if len(settings["axisNames"]) > 1:
             settings["yAxisName"] = settings["axisNames"][values["yAxisPopUpButton"]]
-        xAxisSettings = parseRangeInput(values["columnsField"])
-        if xAxisSettings:
-            settings["xAxisSettings"] = xAxisSettings
-        yAxisSettings = parseRangeInput(values["rowsField"])
-        if yAxisSettings:
-            settings["yAxisSettings"] = yAxisSettings
         settings["columnWidthMode"] = ["fit", "mono"][values["columnWidthsRadioButtons"]]
         settings["showSources"] = values["showSourcesCheckbox"]
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
@@ -954,35 +1016,26 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["unsmoothThreshold"] = values["unsmoothThresholdSlider"]
         self.callback()
 
+def parseRangeInput(value):
+    try:
+        value = int(value)
+        # can't have less than two
+        if value < 2:
+            value = 2
+        # arbitrary "it's going to be slow because that's too many" threshold
+        elif value > 20:
+            value = 20
+        return value
+    except ValueError:
+        return None
 
-def parseRangeInput(text):
-    """
-    - integer: number of steps
-    - space separated numbers: locations
-    """
-    data = dict(
-        steps=None,
-        locations=None
-    )
-    text = text.strip()
-    if " " in text:
-        try:
-            data["locations"] = [float(i.strip()) for i in text.split(" ") if i.strip()]
-        except ValueError:
-            return None
-    else:
-        try:
-            data["steps"] = int(text)
-        except ValueError:
-            return None
-        if data["steps"] < 2:
-            return None
-    return data
+def parseLocationInput(value):
+    try:
+        value = [float(i.strip()) for i in value.split(" ") if i.strip()]
+        return value
+    except ValueError:
+        return None
 
-def rangeToString(data):
-    if data["locations"]:
-        return " ".join([str(i) for i in data["locations"]])
-    return str(data["steps"])
 
 def splitSuffix(glyphName):
     if "." not in glyphName:
