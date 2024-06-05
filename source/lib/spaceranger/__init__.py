@@ -699,7 +699,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 continue
             for font, fontLocation in self.ufoOperator.getFonts():
                 if location == fontLocation:
-                    if not font.hasInterface():
+                    if not font.hasInterface:
                         font.asFontParts().openInterface()
                     break
 
