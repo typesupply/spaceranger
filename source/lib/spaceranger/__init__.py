@@ -1,6 +1,7 @@
 import pathlib
 import math
 from fontTools.pens.pointPen import GuessSmoothPointPen
+from fontTools.designspaceLib import processRules
 import merz
 import ezui
 from mojo.UI import splitText, inDarkMode
@@ -131,6 +132,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             axisNames=[],
 
             discreteLocation=None,
+            applyRules=False,
 
             xAxisName=None,
             xAxisMode="count", # count | locations
@@ -300,6 +302,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def prepareItems(self):
         settings = self.settings
         discreteLocation = settings["discreteLocation"]
+        applyRules = settings["applyRules"]
         columnWidthMode = settings["columnWidthMode"]
         unprocessedGlyphNames = settings["unprocessedGlyphNames"]
         desiredSuffix = settings["glyphNameSuffix"]
@@ -328,8 +331,16 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             glyphNames = suffixedGlyphNames
         settings["glyphNames"] = glyphNames
         # observe sources as adjunct glyphs
+        if not applyRules:
+            processedGlyphNames = glyphNames
+        else:
+            processedGlyphNames = []
+            for item in self.items:
+                location = item.getInfoValue("location")
+                processedGlyphNames += processRules(self.ufoOperator.rules, location, glyphNames)
+            processedGlyphNames = list(set(processedGlyphNames))
         newAdjunctGlyphs = set()
-        for glyphName in glyphNames:
+        for glyphName in processedGlyphNames:
             sources, unicodes = self.ufoOperator.collectSourcesForGlyph(
                 glyphName,
                 discreteLocation=discreteLocation,
@@ -354,6 +365,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         settings = self.settings
         glyphNames = settings["glyphNames"]
         discreteLocation = settings["discreteLocation"]
+        applyRules = settings["applyRules"]
         xAxisName = settings["xAxisName"]
         yAxisName = settings["yAxisName"]
         columnWidthMode = settings["columnWidthMode"]
@@ -369,8 +381,12 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         for item in self.items:
             location = item.getInfoValue("location")
             info = self.ufoOperator.makeOneInfo(location)
+            if not applyRules:
+                processedGlyphNames = glyphNames
+            else:
+                processedGlyphNames = processRules(self.ufoOperator.rules, location, glyphNames)
             glyph = compileGlyph(
-                glyphNames=glyphNames,
+                glyphNames=processedGlyphNames,
                 ufoOperator=self.ufoOperator,
                 location=location,
                 incompatibleGlyphs=self.incompatibleGlyphs,
@@ -778,6 +794,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         discreteLocationIndex = 0
         if settings["discreteLocation"]:
             discreteLocationIndex = settings["discreteLocations"].index(settings["discreteLocation"])
+        applyRules = settings["applyRules"]
         xAxisNames = settings["axisNames"]
         xAxisIndex = 0
         if settings["xAxisName"] in xAxisNames:
@@ -825,6 +842,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         : Discrete Location:
         (Choose ...)            @discreteLocationPopUpButton
+
+        :
+        [ ] Apply Rules         @applyRulesCheckbox
 
         ---
 
@@ -887,6 +907,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             discreteLocationPopUpButton=dict(
                 items=discreteLocationNames,
                 selected=discreteLocationIndex
+            ),
+            applyRulesCheckbox=dict(
+                value=applyRules
             ),
 
             xAxisPopUpButton=dict(
@@ -1005,6 +1028,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["glyphNameSuffix"] = self.suffixes[values["textSuffixPopUpButton"]]
         if settings["discreteLocations"]:
             settings["discreteLocation"] = settings["discreteLocations"][values["discreteLocationPopUpButton"]]
+        settings["applyRules"] = values["applyRulesCheckbox"]
         settings["xAxisName"] = settings["axisNames"][values["xAxisPopUpButton"]]
         if len(settings["axisNames"]) > 1:
             settings["yAxisName"] = settings["axisNames"][values["yAxisPopUpButton"]]
