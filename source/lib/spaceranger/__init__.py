@@ -150,11 +150,13 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             glyphNames=[],
 
             showSources=False,
+            highlightSources=False,
 
             usePrepolator=True,
-            highlightSources=False,
+
             highlightUnsmooths=False,
             unsmoothThreshold=2.0,
+            autoSmoothDefault=True
         )
         self.loadOperatorOptions()
         self.parseTextInput()
@@ -372,6 +374,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         highlightSources = settings["highlightSources"]
         checkSmooths = settings["highlightUnsmooths"]
         unsmoothThreshold = settings["unsmoothThreshold"]
+        autoSmoothDefault = settings["autoSmoothDefault"]
         # run prepolator
         self._runPrepolator(glyphNames)
         # build the glyphs in the items
@@ -420,7 +423,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 ufoOperator=self.ufoOperator,
                 location=defaultLocation,
                 incompatibleGlyphs=self.incompatibleGlyphs,
-                smooth=True
+                smooth=autoSmoothDefault
             )
             modelSmooths = []
             for contourIndex, contour in enumerate(model.contours):
@@ -794,12 +797,15 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         discreteLocationIndex = 0
         if settings["discreteLocation"]:
             discreteLocationIndex = settings["discreteLocations"].index(settings["discreteLocation"])
+
         applyRules = settings["applyRules"]
+
         xAxisNames = settings["axisNames"]
         xAxisIndex = 0
         if settings["xAxisName"] in xAxisNames:
             xAxisIndex = xAxisNames.index(settings["xAxisName"])
         xAxisMode = ["count", "locations"].index(settings["xAxisMode"])
+
         yAxisNames = []
         if len(xAxisNames) > 1:
             yAxisNames = xAxisNames
@@ -811,11 +817,16 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             columnWidthMode = 0
         else:
             columnWidthMode = 1
-        usePrepolator = settings["usePrepolator"]
+
         showSources = settings["showSources"]
         highlightSources = settings["highlightSources"]
+
+        usePrepolator = settings["usePrepolator"]
+
         highlightUnsmooths = settings["highlightUnsmooths"]
         unsmoothThreshold = settings["unsmoothThreshold"]
+        autoSmoothDefault = settings["autoSmoothDefault"]
+
         self.suffixes = ["_none_", "_auto_"]
         suffixOptions = ["None", "Auto"]
         suffixes = settings["glyphNameSuffixes"]
@@ -891,6 +902,8 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         [X] Highlight Unsmooths @highlightUnsmoothsCheckbox
         : Unsmooth Threshold:
         ---X--- 123             @unsmoothThresholdSlider
+        :
+        [X] Auto-Smooth Default @autoSmoothDefaultCheckbox
         """
         numberFieldWidth = 50
         descriptionData = dict(
@@ -952,6 +965,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
                 tickMarks=21,
                 stopOnTickMarks=True
             ),
+            autoSmoothDefaultCheckbox=dict(
+                value=autoSmoothDefault
+            )
         )
         self.w = ezui.EZPopover(
             content=content,
@@ -1038,7 +1054,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
         settings["unsmoothThreshold"] = values["unsmoothThresholdSlider"]
+        settings["autoSmoothDefault"] = values["autoSmoothDefaultCheckbox"]
         self.callback()
+
 
 def parseRangeInput(value):
     try:
