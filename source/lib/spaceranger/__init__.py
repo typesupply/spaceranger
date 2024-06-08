@@ -677,7 +677,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         gridContainer = self.gridContainer
         gridItemContainer = self.gridItemContainer
         minScale = 0.5
-        maxScale = 10.0
+        maxScale = 50.0
         magnificationDelta = event.magnification()
         if magnificationDelta < 0:
             factor = 0.9
@@ -1077,7 +1077,6 @@ def parseLocationInput(value):
         return value
     except ValueError:
         return None
-
 
 def splitSuffix(glyphName):
     if "." not in glyphName:
