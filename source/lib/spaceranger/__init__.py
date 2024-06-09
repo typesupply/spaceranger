@@ -27,6 +27,7 @@ modeColors = dict(
         background=(1, 1, 1, 1),
         fill=(0, 0, 0, 1),
         sourceBorder=(0, 0, 0, 0.25),
+        instanceBorder=(0, 0, 0, 0.1),
         locationTextFill=(1, 1, 1, 1),
         locationTextBackground=(0, 0, 0, 0.9),
     ),
@@ -34,6 +35,7 @@ modeColors = dict(
         background=(0, 0, 0, 1),
         fill=(1, 1, 1, 1),
         sourceBorder=(1, 1, 1, 0.25),
+        instanceBorder=(1, 1, 1, 0.1),
         locationTextFill=(0, 0, 0, 1),
         locationTextBackground=(1, 1, 1, 0.95),
     ),
@@ -117,7 +119,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             descriptionData=descriptionData,
             controller=self,
             title=pathlib.Path(self.ufoOperator.path).name,
-            margins=(0, 0, 0, 0), #left, bottom, right, top
+            margins=(0, 0, 0, 0),
             size=(500, 500),
             minSize=(400, 400)
         )
@@ -135,12 +137,12 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             applyRules=False,
 
             xAxisName=None,
-            xAxisMode="count", # count | locations
+            xAxisMode="count", # count | locations | instances
             xAxisCount=5,
             xAxisLocations=[-1000, 0, 1000],
 
             yAxisName=None,
-            yAxisMode="count", # count | locations
+            yAxisMode="count", # count | locations | instances
             yAxisCount=5,
             yAxisLocations=[-1000, 0, 1000],
 
@@ -151,6 +153,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
             showSources=False,
             highlightSources=False,
+            highlightInstances=False,
 
             usePrepolator=True,
 
@@ -198,16 +201,32 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         if discreteLocation:
             baseLocation.update(discreteLocation)
         baseLocation.update(defaultAxes)
+        # instances
+        instanceLocations = [
+            instance.location for instance in self.ufoOperator.instances
+        ]
         # column count
         sortColumnLocations = False
         if settings["xAxisMode"] == "locations":
             columnLocations = settings["xAxisLocations"]
+        elif settings["xAxisMode"] == "instances":
+            columnLocations = getInstanceLocationsForAxis(
+                instanceLocations,
+                xAxisName,
+                discreteLocation
+            )
         else:
             columnLocations = self._makeAxisSteps(xAxisName, settings["xAxisCount"])
         # row count
         sortRowLocations = False
         if not yAxisName:
             rowLocations = [0]
+        elif settings["yAxisMode"] == "instances":
+            rowLocations = getInstanceLocationsForAxis(
+                instanceLocations,
+                yAxisName,
+                discreteLocation
+            )
         else:
             if settings["yAxisMode"] == "locations":
                 rowLocations = settings["yAxisLocations"]
@@ -255,6 +274,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 )
                 base.setInfoValue("location", location)
                 base.setInfoValue("isSource", location in sourceLocations)
+                base.setInfoValue("isInstance", location in instanceLocations)
                 base.setInfoValue("columnIndex", columnIndex)
                 base.setInfoValue("rowIndex", rowIndex)
                 glyphContainerLayer = base.appendBaseSublayer(
@@ -372,6 +392,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         yAxisName = settings["yAxisName"]
         columnWidthMode = settings["columnWidthMode"]
         highlightSources = settings["highlightSources"]
+        highlightInstances = settings["highlightInstances"]
         checkSmooths = settings["highlightUnsmooths"]
         unsmoothThreshold = settings["unsmoothThreshold"]
         autoSmoothDefault = settings["autoSmoothDefault"]
@@ -438,6 +459,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             glyph = item.getInfoValue("glyph")
             info = item.getInfoValue("info")
             isSource = item.getInfoValue("isSource")
+            isInstance = item.getInfoValue("isInstance")
             scale = item.getInfoValue("scale")
             columnWidth = columnWidths[columnIndex]
             # the view coordinates start at the bottom,
@@ -462,6 +484,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             # update the source indicator
             if highlightSources and isSource:
                 item.setBorderColor(self.sourceBorderColor)
+            elif highlightInstances and isInstance:
+                item.setBorderColor(self.instanceBorderColor)
             else:
                 item.setBorderColor(None)
             # update the glyph container
@@ -558,6 +582,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.backgroundColor = colors["background"]
         self.fillColor = colors["fill"]
         self.sourceBorderColor = colors["sourceBorder"]
+        self.instanceBorderColor = colors["instanceBorder"]
         self.locationTextFillColor = colors["locationTextFill"]
         self.locationTextBackgroundColor = colors["locationTextBackground"]
 
@@ -774,6 +799,24 @@ def compileGlyph(
             compiledGlyph.width += glyph.width
     return compiledGlyph
 
+def getInstanceLocationsForAxis(instanceLocations, axisName, discreteLocation):
+    if discreteLocation is None:
+        discreteLocation = {}
+    axisLocations = set()
+    for location in instanceLocations:
+        if location[axisName] in axisLocations:
+            continue
+        matchesDiscreteLocation = True
+        for otherAxisName, value in location.items():
+            if otherAxisName in discreteLocation:
+                if discreteLocation[otherAxisName] != value:
+                    matchesDiscreteLocation = False
+                    break
+        if matchesDiscreteLocation:
+            axisLocations.add(location[axisName])
+    axisLocations = list(sorted(axisLocations))
+    return axisLocations
+
 
 # ----------------
 # Settings Popover
@@ -804,7 +847,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         xAxisIndex = 0
         if settings["xAxisName"] in xAxisNames:
             xAxisIndex = xAxisNames.index(settings["xAxisName"])
-        xAxisMode = ["count", "locations"].index(settings["xAxisMode"])
+        xAxisMode = ["count", "locations", "instances"].index(settings["xAxisMode"])
 
         yAxisNames = []
         if len(xAxisNames) > 1:
@@ -812,7 +855,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         yAxisIndex = 0
         if settings["yAxisName"] in yAxisNames:
             yAxisIndex = yAxisNames.index(settings["yAxisName"])
-        yAxisMode = ["count", "locations"].index(settings["yAxisMode"])
+        yAxisMode = ["count", "locations", "instances"].index(settings["yAxisMode"])
         if settings["columnWidthMode"] == "fit":
             columnWidthMode = 0
         else:
@@ -820,6 +863,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         showSources = settings["showSources"]
         highlightSources = settings["highlightSources"]
+        highlightInstances = settings["highlightInstances"]
 
         usePrepolator = settings["usePrepolator"]
 
@@ -865,6 +909,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         : Mode:
         (X) Count               @xAxisModeRadioButtons
         ( ) Locations
+        ( ) Instances
 
         :
         [__]                    @xAxisValueField
@@ -881,6 +926,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         : Mode:
         (X) Count               @yAxisModeRadioButtons
         ( ) Locations
+        ( ) Instances
 
         :
         [__]                    @yAxisValueField
@@ -890,6 +936,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         : Sources:
         [ ] Insert              @showSourcesCheckbox
         [ ] Highlight           @highlightSourcesCheckbox
+
+        : Instances:
+        [ ] Highlight           @highlightInstancesCheckbox
 
         !§ Pre-Process
 
@@ -950,6 +999,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             highlightSourcesCheckbox=dict(
                 value=highlightSources
             ),
+            highlightInstancesCheckbox=dict(
+                value=highlightInstances
+            ),
 
             usePrepolatorCheckbox=dict(
                 value=usePrepolator
@@ -986,13 +1038,20 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
     def xAxisModeRadioButtonsCallback(self, sender):
         settings = self.settings
-        if sender.get() == 0:
+        choice = sender.get()
+        enable = True
+        if choice == 0:
             settings["xAxisMode"] = "count"
             value = str(settings["xAxisCount"])
-        else:
+        elif choice == 1:
             settings["xAxisMode"] = "locations"
             value = " ".join([str(i) for i in settings["xAxisLocations"]])
+        elif choice == 2:
+            settings["xAxisMode"] = "instances"
+            value = ""
+            enable = False
         self.w.setItemValue("xAxisValueField", value)
+        self.w.getItem("xAxisValueField").enable(enable)
         self.contentCallback(sender)
 
     def xAxisValueFieldCallback(self, sender):
@@ -1013,13 +1072,20 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
     def yAxisModeRadioButtonsCallback(self, sender):
         settings = self.settings
-        if sender.get() == 0:
+        choice = sender.get()
+        enable = True
+        if choice == 0:
             settings["yAxisMode"] = "count"
             value = str(settings["yAxisCount"])
-        else:
+        elif choice == 1:
             settings["yAxisMode"] = "locations"
             value = " ".join([str(i) for i in settings["yAxisLocations"]])
+        elif choice == 2:
+            settings["yAxisMode"] = "instances"
+            value = ""
+            enable = False
         self.w.setItemValue("yAxisValueField", value)
+        self.w.getItem("yAxisValueField").enable(enable)
         self.contentCallback(sender)
 
     def yAxisValueFieldCallback(self, sender):
@@ -1051,6 +1117,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["columnWidthMode"] = ["fit", "mono"][values["columnWidthsRadioButtons"]]
         settings["showSources"] = values["showSourcesCheckbox"]
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
+        settings["highlightInstances"] = values["highlightInstancesCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
         settings["unsmoothThreshold"] = values["unsmoothThresholdSlider"]
