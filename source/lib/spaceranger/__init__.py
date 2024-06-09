@@ -47,6 +47,8 @@ itemSpacing = itemPointSize * 0.1
 gridInset = itemPointSize * 0.1
 itemCornerRadius = itemPointSize * 0.07
 
+minZoomScale = 0.5
+maxZoomScale = 50.0
 
 # -----------------
 # Window Controller
@@ -84,11 +86,12 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             startText = "/?"
 
         content = """
-        * HorizontalStack       @toolbarStack
-        > [__]                  @textField
-        > ({gearshape})         @settingsButton
+        * HorizontalStack           @toolbarStack
+        > [__]                      @textField
+        > ({character.magnify})     @zoomButton
+        > ({gearshape})             @settingsButton
 
-        * ScrollingMerzView     @gridView
+        * ScrollingMerzView         @gridView
         """
         numberFieldWidth = 50
         descriptionData = dict(
@@ -103,6 +106,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             textField=dict(
                 value=startText,
                 width="fill"
+            ),
+            zoomButton=dict(
+                gravity="trailing"
             ),
             settingsButton=dict(
                 gravity="trailing"
@@ -572,6 +578,34 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.prepareItems()
         self.updateItems()
 
+    # Zoom
+
+    def zoomButtonCallback(self, sender):
+        SpaceRangerViewZoomWindowController(
+            parent=sender,
+            value=self.gridContainer.getContainerScale(),
+            callback=self._zoomPopoverCallback,
+        )
+
+    def _zoomPopoverCallback(self, value):
+        self.setViewMagnification(value)
+
+    def setViewMagnification(self, scale, location=None):
+        # XXX figure out how to maintain the location
+        # https://stackoverflow.com/questions/1296920/how-to-maintain-the-scroll-position-in-nsscrollview-when-changing-scale
+        gridView = self.gridView
+        gridContainer = self.gridContainer
+        gridItemContainer = self.gridItemContainer
+        if scale > maxZoomScale:
+            scale = maxZoomScale
+        elif scale < minZoomScale:
+            scale = minZoomScale
+        gridContainer.setContainerScale(scale)
+        width, height = gridItemContainer.getSize()
+        width *= scale
+        height *= scale
+        gridView.setMerzViewSize((width, height))
+
     # Settings
 
     def loadColors(self):
@@ -701,8 +735,11 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         gridView = self.gridView
         gridContainer = self.gridContainer
         gridItemContainer = self.gridItemContainer
-        minScale = 0.5
-        maxScale = 50.0
+        location = gridView.getMerzView().getNSView().convertPoint_fromView_(
+            event.locationInWindow(),
+            None
+        )
+        location = None
         magnificationDelta = event.magnification()
         if magnificationDelta < 0:
             factor = 0.9
@@ -710,13 +747,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             factor = 1.1
         scale = gridContainer.getContainerScale()
         scale *= factor
-        if scale > maxScale:
-            scale = maxScale
-        elif scale < minScale:
-            scale = minScale
-        gridContainer.setContainerScale(scale)
-        width, height = gridItemContainer.getSize()
-        gridView.setMerzViewSize((width * scale, height * scale))
+        self.setViewMagnification(scale, location)
 
     def _findItemsForEvent(self, event):
         location = event["location"]
@@ -817,6 +848,46 @@ def getInstanceLocationsForAxis(instanceLocations, axisName, discreteLocation):
     axisLocations = list(sorted(axisLocations))
     return axisLocations
 
+
+# ------------
+# Zoom Popover
+# ------------
+
+class SpaceRangerViewZoomWindowController(ezui.WindowController):
+
+    def build(self,
+            parent,
+            value,
+            callback
+        ):
+        self.callback = callback
+        content = """
+        ---X--- @zoomSlider
+        """
+        descriptionData = dict(
+            zoomSlider=dict(
+                minValue=minZoomScale,
+                maxValue=maxZoomScale,
+                value=value
+            )
+        )
+        self.w = ezui.EZPopover(
+            content=content,
+            descriptionData=descriptionData,
+            parent=parent,
+            parentAlignment="right",
+            controller=self,
+            size=(200, "auto")
+        )
+
+    def started(self):
+        self.w.open()
+
+    def destory(self):
+        self.callback = None
+
+    def zoomSliderCallback(self, sender):
+        self.callback(sender.get())
 
 # ----------------
 # Settings Popover
