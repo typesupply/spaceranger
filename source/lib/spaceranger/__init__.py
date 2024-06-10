@@ -2,6 +2,7 @@ import pathlib
 import math
 from fontTools.pens.pointPen import GuessSmoothPointPen
 from fontTools.designspaceLib import processRules
+import AppKit
 import merz
 import ezui
 from mojo.UI import splitText, inDarkMode
@@ -588,23 +589,61 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         )
 
     def _zoomPopoverCallback(self, value):
-        self.setViewMagnification(value)
+        self.performViewZoom(value)
 
-    def setViewMagnification(self, scale, location=None):
-        # XXX figure out how to maintain the location
-        # https://stackoverflow.com/questions/1296920/how-to-maintain-the-scroll-position-in-nsscrollview-when-changing-scale
+    def performViewZoom(self, scale=None, event=None):
         gridView = self.gridView
+        documentView = gridView.getMerzView().getNSView()
         gridContainer = self.gridContainer
         gridItemContainer = self.gridItemContainer
+        oldScale = gridContainer.getContainerScale()
+        unscaledWidth, unscaledHeight = gridView.getMerzViewSize()
+        unscaledWidth /= oldScale
+        unscaledHeight /= oldScale
+        if event is not None:
+            eventInfo = merz.unpackEvent(event)
+            if "magnification" not in eventInfo:
+                eventInfo = tempEventUnpack(event)
+            event = eventInfo
+            magnification = event["magnification"]
+            if magnification < 0:
+                factor = 0.9
+            else:
+                factor = 1.1
+            scale = oldScale * factor
         if scale > maxZoomScale:
             scale = maxZoomScale
         elif scale < minZoomScale:
             scale = minZoomScale
+        width = unscaledWidth * scale
+        height = unscaledHeight * scale
+        if event is not None:
+            phase = event["phase"]
+            if phase == "began":
+                x, y = documentView.convertPoint_fromView_(
+                    event["location"],
+                    None
+                )
+                x /= oldScale
+                y /= oldScale
+                self.magnifyWithEventFocalPoint = (x, y)
+            x, y = self.magnifyWithEventFocalPoint
+            if phase == "ended":
+                del self.magnifyWithEventFocalPoint
+        else:
+            (xMin, yMin), (visibleWidth, visibleHeight) = documentView.visibleRect()
+            x = xMin + (visibleWidth / 2)
+            y = yMin + (visibleHeight / 2)
+            x /= oldScale
+            y /= oldScale
+        x *= scale
+        y *= scale
+        visibleWidth, visibleHeight = documentView.visibleRect().size
+        x = x - (visibleWidth / 2)
+        y = y - (visibleHeight / 2)
         gridContainer.setContainerScale(scale)
-        width, height = gridItemContainer.getSize()
-        width *= scale
-        height *= scale
         gridView.setMerzViewSize((width, height))
+        documentView.scrollPoint_((x, y))
 
     # Settings
 
@@ -732,22 +771,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         return True
 
     def magnifyWithEvent(self, sender, event):
-        gridView = self.gridView
-        gridContainer = self.gridContainer
-        gridItemContainer = self.gridItemContainer
-        location = gridView.getMerzView().getNSView().convertPoint_fromView_(
-            event.locationInWindow(),
-            None
-        )
-        location = None
-        magnificationDelta = event.magnification()
-        if magnificationDelta < 0:
-            factor = 0.9
-        else:
-            factor = 1.1
-        scale = gridContainer.getContainerScale()
-        scale *= factor
-        self.setViewMagnification(scale, location)
+        self.performViewZoom(event=event)
 
     def _findItemsForEvent(self, event):
         location = event["location"]
@@ -848,6 +872,22 @@ def getInstanceLocationsForAxis(instanceLocations, axisName, discreteLocation):
     axisLocations = list(sorted(axisLocations))
     return axisLocations
 
+def tempEventUnpack(event):
+    _gesturePhaseMap = {
+        AppKit.NSEventPhaseNone : "none",
+        AppKit.NSEventPhaseBegan : "began",
+        AppKit.NSEventPhaseStationary : "stationary",
+        AppKit.NSEventPhaseChanged : "changed",
+        AppKit.NSEventPhaseEnded : "ended",
+        AppKit.NSEventPhaseCancelled : "cancelled",
+        AppKit.NSEventPhaseMayBegin : "begin"
+    }
+    unpacked = dict(
+        phase=_gesturePhaseMap.get(event.phase(), "unknown"),
+        location=event.locationInWindow(),
+        magnification=event.magnification()
+    )
+    return unpacked
 
 # ------------
 # Zoom Popover
