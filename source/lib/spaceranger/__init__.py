@@ -62,6 +62,7 @@ maxZoomScale = 50.0
 extensionKeyStub = "com.typesupply.SpaceRanger."
 defaults = dict(
     applyRules=False,
+    applyKerning=True,
     xAxisMode="count", # count | locations | instances
     xAxisCount=5,
     xAxisLocations=[-1000, 0, 1000],
@@ -112,6 +113,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 showInterface=False
             )
         self.adjunctGlyphs = set()
+        self.adjunctKernings = set()
 
         startText = "HELLO"
         glyph = CurrentGlyph()
@@ -327,8 +329,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             locations.append(location)
         return locations
 
-    adjunctGlyphs = None
-
     def prepareItems(self):
         settings = self.settings
         discreteLocation = settings["discreteLocation"]
@@ -360,7 +360,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 suffixedGlyphNames.append(glyphName)
             glyphNames = suffixedGlyphNames
         settings["glyphNames"] = glyphNames
-        # observe sources as adjunct glyphs
+        # observe sources as adjunct glyphs and kerning
         if not applyRules:
             processedGlyphNames = glyphNames
         else:
@@ -370,6 +370,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 processedGlyphNames += processRules(self.ufoOperator.rules, location, glyphNames)
             processedGlyphNames = list(set(processedGlyphNames))
         newAdjunctGlyphs = set()
+        newAdjunctKernings = set()
         for glyphName in processedGlyphNames:
             sources, unicodes = self.ufoOperator.collectSourcesForGlyph(
                 glyphName,
@@ -380,6 +381,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             for source in sources:
                 l, g, d = source
                 newAdjunctGlyphs.add(g)
+                newAdjunctKernings.add(g.font.kerning)
         for glyph in self.adjunctGlyphs:
             if glyph not in newAdjunctGlyphs:
                 self.removeObservedAdjunctObject(glyph)
@@ -387,6 +389,13 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             if glyph not in self.adjunctGlyphs:
                 self.addAdjunctObjectToObserve(glyph)
         self.adjunctGlyphs = newAdjunctGlyphs
+        for kerning in self.adjunctKernings:
+            if kerning not in newAdjunctKernings:
+                self.removeObservedAdjunctObject(kerning)
+        for kerning in newAdjunctKernings:
+            if kerning not in self.adjunctKernings:
+                self.addAdjunctObjectToObserve(kerning)
+        self.adjunctKernings = newAdjunctKernings
 
     def updateItems(self):
         gridView = self.gridView
@@ -396,6 +405,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         glyphNames = settings["glyphNames"]
         discreteLocation = settings["discreteLocation"]
         applyRules = settings["applyRules"]
+        applyKerning = settings["applyKerning"]
         xAxisName = settings["xAxisName"]
         yAxisName = settings["yAxisName"]
         columnWidthMode = settings["columnWidthMode"]
@@ -406,6 +416,25 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         autoSmoothDefault = settings["autoSmoothDefault"]
         # run prepolator
         self._runPrepolator(glyphNames)
+        # build a full list of needed kerning pairs
+        kerningPairs = set()
+        if applyKerning:
+            defaultFont = self.ufoOperator.findDefaultFont(discreteLocation=discreteLocation)
+            defaultFont = defaultFont.asFontParts()
+            side1Groups = defaultFont.groups.side1KerningGroups
+            side2Groups = defaultFont.groups.side2KerningGroups
+            previousGlyphName = None
+            for glyphName in glyphNames:
+                if previousGlyphName is None:
+                    previousGlyphName = glyphName
+                    continue
+                previousGroupName = side1Groups.get(glyphName, glyphName)
+                groupName = side2Groups.get(glyphName, glyphName)
+                kerningPairs.add((previousGlyphName, glyphName))
+                kerningPairs.add((previousGroupName, glyphName))
+                kerningPairs.add((previousGlyphName, groupName))
+                kerningPairs.add((previousGroupName, groupName))
+        kerningPairs = list(kerningPairs)
         # build the glyphs in the items
         columnWidthCalculator = {}
         for columnIndex in self.itemsInColumns:
@@ -422,7 +451,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 ufoOperator=self.ufoOperator,
                 location=location,
                 incompatibleGlyphs=self.incompatibleGlyphs,
-                smooth=False
+                kerningPairs=kerningPairs,
+                smooth=False,
             )
             scale = itemPointSize / info.unitsPerEm
             item.setInfoValue("glyph", glyph)
@@ -787,6 +817,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def adjunctGlyphDidChangeMetrics(self, info):
         self.updateItems()
 
+    def adjunctFontKerningDidChange(self, info):
+        self.updateItems()
+
     # MerzView Delegate
 
     def acceptsFirstResponder(self, sender):
@@ -852,24 +885,31 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.performViewZoom(scale=scale)
 
 
-
 def compileGlyph(
         glyphNames,
         ufoOperator,
         location,
         incompatibleGlyphs=[],
-        smooth=False
+        kerningPairs=[],
+        smooth=False,
     ):
     # remove bogus y axis value
     if None in location:
         location = dict(location)
         del location[None]
+    kerning = None
+    if kerningPairs:
+        kerning = ufoOperator.makeOneKerning(
+            location=location,
+            pairs=kerningPairs
+        )
     compiledGlyph = RGlyph()
     compiledGlyph.width = 0
     for glyphName in glyphNames:
         if glyphName in incompatibleGlyphs:
             continue
         compiledGlyph = RGlyph()
+        previousGlyphName = None
         for glyphName in glyphNames:
             mathGlyph = ufoOperator.makeOneGlyph(
                 glyphName=glyphName,
@@ -887,8 +927,12 @@ def compileGlyph(
             if smooth:
                 pen = GuessSmoothPointPen(pen)
             mathGlyph.extractGlyph(glyph.asDefcon(), pointPen=pen)
-            compiledGlyph.appendGlyph(glyph, offset=(compiledGlyph.width, 0))
-            compiledGlyph.width += glyph.width
+            kern = 0
+            if kerning and previousGlyphName is not None:
+                kern = kerning[previousGlyphName, glyphName]
+            compiledGlyph.appendGlyph(glyph, offset=(compiledGlyph.width + kern, 0))
+            compiledGlyph.width += kern + glyph.width
+            previousGlyphName = glyphName
     return compiledGlyph
 
 def getInstanceLocationsForAxis(instanceLocations, axisName, discreteLocation):
@@ -990,6 +1034,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             discreteLocationIndex = settings["discreteLocations"].index(settings["discreteLocation"])
 
         applyRules = settings["applyRules"]
+        applyKerning = settings["applyKerning"]
 
         xAxisNames = settings["axisNames"]
         xAxisIndex = 0
@@ -1048,6 +1093,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         :
         [ ] Apply Rules         @applyRulesCheckbox
+
+        :
+        [ ] Apply Kerning       @applyKerningCheckbox
 
         ---
 
@@ -1120,6 +1168,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             ),
             applyRulesCheckbox=dict(
                 value=applyRules
+            ),
+            applyKerningCheckbox=dict(
+                value=applyKerning
             ),
 
             xAxisPopUpButton=dict(
@@ -1259,6 +1310,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         if settings["discreteLocations"]:
             settings["discreteLocation"] = settings["discreteLocations"][values["discreteLocationPopUpButton"]]
         settings["applyRules"] = values["applyRulesCheckbox"]
+        settings["applyKerning"] = values["applyKerningCheckbox"]
         settings["xAxisName"] = settings["axisNames"][values["xAxisPopUpButton"]]
         if len(settings["axisNames"]) > 1:
             settings["yAxisName"] = settings["axisNames"][values["yAxisPopUpButton"]]
