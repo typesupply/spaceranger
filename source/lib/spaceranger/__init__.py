@@ -16,7 +16,7 @@ from fontParts.world import(
 try:
     import prepolator
     havePrepolator = True
-except ModuleNotFoundError:
+except (ModuleNotFoundError, AttributeError):
     havePrepolator = False
 
 
