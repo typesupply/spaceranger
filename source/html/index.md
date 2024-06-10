@@ -1,8 +1,14 @@
 # Space Ranger
 
-This tool lets you see a one dimension line or two dimensional grid representation of a segment of a designspace. The contents of the grid are response to changes you make in RoboFont, DesignSpaceEditor, Prepolator and other glyph editing extensions.
+This tool lets you see a one dimension line or two dimensional grid representation of a segment of a designspace. The contents of the grid are responsive to changes you make in RoboFont, DesignSpaceEditor, Prepolator and other glyph editing extensions.
 
 Enter some text in the text field at the top of the window and it will be shown in the view. *(Tip: `/?` works to show the "current" glyph just like it does in Space Center.)*
+
+If you want to make the contents of the view larger or smaller, do one of these:
+
+- Hit the magnify icon next to the text field at the top of the window and adjust the slider in the popover.
+- Click inside the view and use the standard *pinch-to-zoom* gesture.
+- Click inside the view and use the `command -` and `command +` key commands.
 
 In the view, if you see a source you want to edit, double click it. Also in the view, if you want to see information about an instance, hold down the option key and hover over the instance.
 

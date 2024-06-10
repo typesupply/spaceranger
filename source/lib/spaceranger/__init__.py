@@ -815,6 +815,21 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             locationLayer = layer.getSublayer("locationText")
             locationLayer.setVisible(layer in hits)
 
+    def keyDown(self, sender, event):
+        event = merz.unpackEvent(event)
+        if "command" not in event["modifiers"]:
+            return
+        character = event["character"]
+        scale = self.gridContainer.getContainerScale()
+        if character == "=":
+            scale *= 1.1
+        elif character == "-":
+            scale *= 0.9
+        else:
+            return
+        self.performViewZoom(scale=scale)
+
+
 
 def compileGlyph(
         glyphNames,
