@@ -5,7 +5,15 @@ from fontTools.designspaceLib import processRules
 import AppKit
 import merz
 import ezui
-from mojo.UI import splitText, inDarkMode
+from mojo.UI import (
+    splitText,
+    inDarkMode
+)
+from mojo.extensions import (
+    registerExtensionDefaults,
+    getExtensionDefault,
+    setExtensionDefault
+)
 from mojo.subscriber import (
     Subscriber,
     registerRoboFontSubscriber
@@ -50,6 +58,30 @@ itemCornerRadius = itemPointSize * 0.07
 
 minZoomScale = 0.5
 maxZoomScale = 50.0
+
+extensionKeyStub = "com.typesupply.SpaceRanger."
+defaults = dict(
+    applyRules=False,
+    xAxisMode="count", # count | locations | instances
+    xAxisCount=5,
+    xAxisLocations=[-1000, 0, 1000],
+    yAxisMode="count",
+    yAxisCount=5,
+    yAxisLocations=[-1000, 0, 1000],
+    columnWidthMode="fit",
+    insertSources=False,
+    highlightSources=False,
+    highlightInstances=False,
+    usePrepolator=False,
+    highlightUnsmooths=False,
+    unsmoothThreshold=2.0,
+    autoSmoothDefault=True
+)
+d = {}
+for k, v in defaults.items():
+    d[extensionKeyStub + k] = v
+defaults = d
+registerExtensionDefaults(defaults)
 
 # -----------------
 # Window Controller
@@ -136,38 +168,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.gridItemContainer = self.gridContainer.appendBaseSublayer(name="gridItemContainer")
         self.gridContainer.setContainerScale(1.0)
 
-        self.settings = dict(
-            discreteLocations=[],
-            axisNames=[],
-
-            discreteLocation=None,
-            applyRules=False,
-
-            xAxisName=None,
-            xAxisMode="count", # count | locations | instances
-            xAxisCount=5,
-            xAxisLocations=[-1000, 0, 1000],
-
-            yAxisName=None,
-            yAxisMode="count", # count | locations | instances
-            yAxisCount=5,
-            yAxisLocations=[-1000, 0, 1000],
-
-            columnWidthMode="fit",
-
-            unprocessedGlyphNames=[],
-            glyphNames=[],
-
-            showSources=False,
-            highlightSources=False,
-            highlightInstances=False,
-
-            usePrepolator=True,
-
-            highlightUnsmooths=False,
-            unsmoothThreshold=2.0,
-            autoSmoothDefault=True
-        )
+        self.loadSettings()
         self.loadOperatorOptions()
         self.parseTextInput()
 
@@ -196,7 +197,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         discreteLocation = settings["discreteLocation"]
         xAxisName = settings["xAxisName"]
         yAxisName = settings["yAxisName"]
-        showSources = settings["showSources"]
+        insertSources = settings["insertSources"]
         # establish the values for unchosen axes
         defaultAxes = {}
         for axis in self.ufoOperator.getOrderedContinuousAxes():
@@ -244,7 +245,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         for source in self.ufoOperator.findSourceDescriptorsForDiscreteLocation(discreteLocation):
             location = source.location
             sourceLocations.append(location)
-            if showSources:
+            if insertSources:
                 columnLocation = location[xAxisName]
                 if columnLocation not in columnLocations:
                     columnLocations.append(columnLocation)
@@ -647,6 +648,26 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     # Settings
 
+    def loadSettings(self):
+        self.settings = dict(
+            discreteLocations=[],
+            axisNames=[],
+            discreteLocation=None,
+            xAxisName=None,
+            yAxisName=None,
+            unprocessedGlyphNames=[],
+            glyphNames=[],
+        )
+        for key in defaults.keys():
+            value = getExtensionDefault(key)
+            key = key[len(extensionKeyStub):]
+            self.settings[key] = value
+
+    def writeSettings(self):
+        for key in defaults:
+            value = self.settings[key[len(extensionKeyStub):]]
+            setExtensionDefault(key, value)
+
     def loadColors(self):
         if inDarkMode():
             colors = modeColors["dark"]
@@ -729,6 +750,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.buildItems()
         self.prepareItems()
         self.updateItems()
+        self.writeSettings()
 
     # RoboFont Observations
 
@@ -987,7 +1009,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         else:
             columnWidthMode = 1
 
-        showSources = settings["showSources"]
+        insertSources = settings["insertSources"]
         highlightSources = settings["highlightSources"]
         highlightInstances = settings["highlightInstances"]
 
@@ -1060,7 +1082,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         ---
 
         : Sources:
-        [ ] Insert              @showSourcesCheckbox
+        [ ] Insert              @insertSourcesCheckbox
         [ ] Highlight           @highlightSourcesCheckbox
 
         : Instances:
@@ -1119,8 +1141,8 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
                 selected=yAxisMode
             ),
 
-            showSourcesCheckbox=dict(
-                value=showSources
+            insertSourcesCheckbox=dict(
+                value=insertSources
             ),
             highlightSourcesCheckbox=dict(
                 value=highlightSources
@@ -1241,7 +1263,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         if len(settings["axisNames"]) > 1:
             settings["yAxisName"] = settings["axisNames"][values["yAxisPopUpButton"]]
         settings["columnWidthMode"] = ["fit", "mono"][values["columnWidthsRadioButtons"]]
-        settings["showSources"] = values["showSourcesCheckbox"]
+        settings["insertSources"] = values["insertSourcesCheckbox"]
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
         settings["highlightInstances"] = values["highlightInstancesCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
