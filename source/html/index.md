@@ -28,6 +28,8 @@ There are a lot of settings.
 
 **Apply Rules** The rules defined in the designspace can be automatically applied.
 
+**Apply Kerning** Kerning can be displayed.
+
 **X Axis** The name of the axis to use for the x axis in the grid.
 
 **Mode** The column generation mode. There are three options:

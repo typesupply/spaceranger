@@ -970,6 +970,7 @@ def tempEventUnpack(event):
     )
     return unpacked
 
+
 # ------------
 # Zoom Popover
 # ------------
@@ -1009,6 +1010,7 @@ class SpaceRangerViewZoomWindowController(ezui.WindowController):
 
     def zoomSliderCallback(self, sender):
         self.callback(sender.get())
+
 
 # ----------------
 # Settings Popover
