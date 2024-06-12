@@ -207,6 +207,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def build(self,
             ufoOperator=None
         ):
+        self.w.workspaceWindowIdentifier = "Space Ranger Window"
+
         self.loadColors()
 
         if not hasattr(ufoOperator, "tempLib"):
