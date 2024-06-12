@@ -207,7 +207,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def build(self,
             ufoOperator=None
         ):
-        self.w.workspaceWindowIdentifier = "Space Ranger Window"
 
         self.loadColors()
 
@@ -279,6 +278,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             size=(500, 500),
             minSize=(400, 400)
         )
+        self.w.workspaceWindowIdentifier = "Space Ranger Window"
 
         self.gridView = self.w.getItem("gridView")
         self.gridContainer = self.gridView.getMerzContainer()
@@ -975,8 +975,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 continue
             for font, fontLocation in self.ufoOperator.getFonts():
                 if location == fontLocation:
-                    if not font.hasInterface:
-                        font.asFontParts().openInterface()
+                    font.asFontParts().openInterface()
                     break
 
     def acceptsMouseMoved(self, sender):
