@@ -1,11 +1,11 @@
 from vanilla import dialogs
-from spaceranger import SpaceRangerWindowController
+from spaceranger import OpenSpaceRanger
 
 paths = dialogs.getFile(
     fileTypes=["designspace"],
     allowsMultipleSelection=False
 )
 if paths:
-    SpaceRangerWindowController(
-        designspacePath=paths[0]
+    OpenSpaceRanger(
+        path=paths[0]
     )

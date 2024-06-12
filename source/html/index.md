@@ -71,3 +71,76 @@ This test will find all the points marked as smooth in the source at the default
 - Auto-Smooth Default: This will use the very reliable [GuessSmoothPointPen](https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/pens/pointPen.py) to determine which points in the source should be considered smooth. This will not make any changes to your source glyph.
 
 *Note: the algorithm used in this test is still in development.*
+
+## Scripting API
+
+The following functions are available for scripts and other extensions to use.
+
+- `OpenSpaceRanger` Open a Space Ranger for a UFOOperator, font or designspace path.
+- `setText` Set the text in a Space Ranger corresponding to a UFOOperator or font.
+- `getWindowSettings` Get the window settings in a Space Ranger corresponding to a UFOOperator or font.
+- `setWindowSettings` Set the window settings in a Space Ranger corresponding to a UFOOperator or font.
+
+For full documentation, run this script:
+
+```python
+import inspect
+import spaceranger
+
+functionNames = """
+OpenSpaceRanger
+setText
+getWindowSettings
+setWindowSettings
+""".strip().splitlines()
+
+for functionName in functionNames:
+    function = getattr(spaceranger, functionName)
+    signature = f"spaceranger.{functionName}{inspect.signature(function)}"
+    print(signature)
+    print("-" * len(signature))
+    print(inspect.getdoc(function))
+    print()
+    print()
+```
+
+### Example: Open a Space Ranger.
+
+```python
+import spaceranger
+
+spaceranger.OpenSpaceRanger(ufoOperator=CurrentDesignspace())
+```
+
+### Example: Setting the text.
+
+```python
+import spaceranger
+
+spaceranger.setText("ABC", font=CurrentFont())
+```
+
+### Example: Getting the available window settings.
+
+```python
+import spaceranger
+
+settings = spaceranger.getWindowSettings(ufoOperator=CurrentDesignspace())
+
+for key, value in settings.items():
+    print(key, value)
+```
+
+### Example: Setting the window settings.
+
+```python
+import spaceranger
+
+settings = dict(
+    xAxisMode="instances",
+    yAxisMode="count",
+    yAxisCount=2
+)
+
+spaceranger.setWindowSettings(settings, ufoOperator=CurrentDesignspace())
+```

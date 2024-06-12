@@ -1,5 +1,6 @@
 import pathlib
 import math
+import weakref
 from fontTools.pens.pointPen import GuessSmoothPointPen
 from fontTools.designspaceLib import processRules
 import AppKit
@@ -14,10 +15,7 @@ from mojo.extensions import (
     getExtensionDefault,
     setExtensionDefault
 )
-from mojo.subscriber import (
-    Subscriber,
-    registerRoboFontSubscriber
-)
+from mojo.subscriber import Subscriber
 from fontParts.world import(
     CurrentGlyph,
     RGlyph
@@ -28,6 +26,8 @@ try:
 except (ModuleNotFoundError, AttributeError):
     havePrepolator = False
 
+extensionIdentifier = "com.typesupply.SpaceRanger"
+extensionKeyStub = extensionIdentifier + "."
 
 debug = __name__ == "__main__"
 
@@ -59,7 +59,6 @@ itemCornerRadius = itemPointSize * 0.07
 minZoomScale = 0.5
 maxZoomScale = 50.0
 
-extensionKeyStub = "com.typesupply.SpaceRanger."
 defaults = dict(
     applyRules=False,
     applyKerning=True,
@@ -78,11 +77,124 @@ defaults = dict(
     unsmoothThreshold=2.0,
     autoSmoothDefault=True
 )
+publicWindowSettings = list(defaults.keys())
 d = {}
 for k, v in defaults.items():
     d[extensionKeyStub + k] = v
 defaults = d
 registerExtensionDefaults(defaults)
+
+
+# ---------
+# Scripting
+# ---------
+
+__all__ = [
+    "SpaceRangerError",
+    "OpenSpaceRanger",
+    "setText",
+    "getWindowSettings",
+    "setWindowSettings"
+]
+
+class SpaceRangerError(Exception): pass
+
+def _getExistingUFOOperatorForFont(font):
+    operators = AllDesignspaces(usingFont=font)
+    if not operators:
+        return None
+    return operators[0]
+
+def _getExistingUFOOperatorForPath(path):
+    operators = AllDesignspaces()
+    for operator in operators:
+        if operator.path == path:
+            return operator
+    return None
+
+def _getSpaceRanger(ufoOperator=None, font=None, path=None, createOperator=False):
+    if all((ufoOperator is None, font is None, path is None)):
+        raise SpaceRangerError("A ufoOperator, font or path must be given.")
+    if font is not None:
+        ufoOperator = _getExistingUFOOperatorForFont(font)
+        if ufoOperator is None and createOperator:
+            raise SpaceRangerError(f"A UFOOperator for {font} could not be found.")
+    elif path is not None:
+        ufoOperator = _getExistingUFOOperatorForPath(path)
+        if ufoOperator is None and createOperator:
+            ufoOperator = OpenDesignspace(path=path, showInterface=False)
+    if ufoOperator is None:
+        return None
+    tempLib = getattr(ufoOperator, "tempLib", {})
+    # already have one, return it if it is still live
+    spaceRanger = tempLib.get("SpaceRangerWindowController")
+    if spaceRanger is not None:
+        spaceRanger = spaceRanger()
+    if spaceRanger:
+        return spaceRanger
+    # create and return
+    spaceRanger = SpaceRangerWindowController(
+        ufoOperator=ufoOperator
+    )
+    return spaceRanger
+
+def OpenSpaceRanger(ufoOperator=None, font=None, path=None):
+    """
+    Open a Space Ranger for one of these:
+
+    - `ufoOperator` A `UFOOperator` object.
+    - `font` A font used in an open UFOOperator.
+    - `path` A designspace path.
+
+    If a Space Ranger for the given arguiment is open,
+    it will be returned instead of opening a new one.
+    """
+    spaceRanger = _getSpaceRanger(
+        ufoOperator=ufoOperator,
+        font=font,
+        path=path,
+        createOperator=True
+    )
+    return spaceRanger
+
+def setText(text, ufoOperator=None, font=None):
+    """
+    Set the text in the Space Ranger that corresponds
+    to `ufoOperator` or `font`. `text` must be a string.
+    """
+    spaceRanger = _getSpaceRanger(
+        ufoOperator=ufoOperator,
+        font=font,
+        createOperator=False
+    )
+    spaceRanger.scriptingSetText(text)
+
+def getWindowSettings(ufoOperator=None, font=None):
+    """
+    Get the window settings for the Space Ranger
+    that corresponds to `ufoOperator` or `font`.
+    """
+    spaceRanger = _getSpaceRanger(
+        ufoOperator=ufoOperator,
+        font=font,
+        createOperator=False
+    )
+    return spaceRanger.scriptingGetWindowSettings()
+
+def setWindowSettings(settings, ufoOperator=None, font=None):
+    """
+    Set the window settings for the Space Ranger
+    that corresponds to `ufoOperator` or `font`.
+    `settings` does not have to include all of the
+    possible settings, only the ones you want to change.
+    """
+    spaceRanger = _getSpaceRanger(
+        ufoOperator=ufoOperator,
+        font=font,
+        createOperator=False
+    )
+    spaceRanger.scriptingSetWindowSettings(settings)
+
 
 # -----------------
 # Window Controller
@@ -93,17 +205,13 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     debug = debug
 
     def build(self,
-            designspacePath=None,
             ufoOperator=None
         ):
         self.loadColors()
 
-        if designspacePath is not None:
-            ufoOperator = OpenDesignspace(
-                path=designspacePath,
-                showInterface=False
-            )
-            ufoOperator.loadFonts()
+        if not hasattr(ufoOperator, "tempLib"):
+            ufoOperator.tempLib = {}
+        ufoOperator.tempLib["SpaceRangerWindowController"] = weakref.ref(self)
 
         self.ufoOperator = ufoOperator
         self.prepolator = None
@@ -155,11 +263,16 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 delegate=self
             )
         )
+        title = "Space Ranger"
+        if self.ufoOperator.path is not None:
+            title = f"Space Ranger: {pathlib.Path(self.ufoOperator.path).name}"
+
         self.w = ezui.EZWindow(
+            autosaveName=extensionKeyStub + "MainWindow",
             content=content,
             descriptionData=descriptionData,
             controller=self,
-            title=pathlib.Path(self.ufoOperator.path).name,
+            title=title,
             margins=(0, 0, 0, 0),
             size=(500, 500),
             minSize=(400, 400)
@@ -182,6 +295,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     def destroy(self):
         self.clearObservedAdjunctObjects()
+        del self.ufoOperator.tempLib["SpaceRangerWindowController"]
 
     # Grid
 
@@ -606,6 +720,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     # Text
 
     def textFieldCallback(self, sender):
+        self._textChanged()
+
+    def _textChanged(self):
         self.parseTextInput()
         self.prepareItems()
         self.updateItems()
@@ -777,6 +894,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         )
 
     def _settingsPopoverCallback(self):
+        self._settingsChanged()
+
+    def _settingsChanged(self):
         self.buildItems()
         self.prepareItems()
         self.updateItems()
@@ -883,6 +1003,25 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         else:
             return
         self.performViewZoom(scale=scale)
+
+    # Scripting API
+
+    def scriptingSetText(self, text):
+        textField = self.w.setItemValue("textField", text)
+        self._textChanged()
+
+    def scriptingGetWindowSettings(self):
+        settings = {}
+        for key in publicWindowSettings:
+            settings[key] = self.settings[key]
+        return settings
+
+    def scriptingSetWindowSettings(self, settings):
+        for key in settings.keys():
+            if key not in publicWindowSettings:
+                raise SpaceRangerError(f"Unknown window setting: {key}")
+        self.settings.update(settings)
+        self._settingsChanged()
 
 
 def compileGlyph(
@@ -1419,5 +1558,6 @@ def getRelativeSmoothness(
         diff = threshold
     return diff / threshold
 
+
 if __name__ == "__main__":
-    SpaceRangerWindowController(ufoOperator=CurrentDesignspace())
+    OpenSpaceRanger(ufoOperator=CurrentDesignspace())
