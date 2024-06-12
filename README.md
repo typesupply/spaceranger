@@ -1,3 +1,8 @@
 # Space Ranger
 
-A tool for looking at your designspace while you are drawing. More info to come?
+Preview a range of glyphs across your designspace as you draw or kern.
+
+## Thanks!
+
+- Erik van Blokland and Frederik Berlaen
+- My Github Sponsors. Thank you all so much!
