@@ -975,7 +975,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 continue
             for font, fontLocation in self.ufoOperator.getFonts():
                 if location == fontLocation:
-                    font.asFontParts().openInterface()
+                    font = font.asFontParts()
+                    if not font.hasInterface():
+                        font.openInterface()
                     break
 
     def acceptsMouseMoved(self, sender):
