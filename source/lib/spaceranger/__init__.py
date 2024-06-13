@@ -927,6 +927,12 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.prepareItems()
         self.updateItems()
 
+    def designspaceEditorRulesDidChange(self, info):
+        if not self.settings["applyRules"]:
+            return
+        self.prepareItems()
+        self.updateItems()
+
     # XXX this only works if this object was created
     # with registerRoboFontSubscriber. instead, the
     # source glyphs are observed as adjunct objects.
