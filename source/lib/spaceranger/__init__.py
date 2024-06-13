@@ -927,6 +927,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.prepareItems()
         self.updateItems()
 
+    designspaceEditorRulesDidChangeDelay = 0.75
+
     def designspaceEditorRulesDidChange(self, info):
         if not self.settings["applyRules"]:
             return
