@@ -515,6 +515,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     def updateItems(self):
         gridView = self.gridView
+        scrollView = self.gridView.getNSScrollView()
         gridContainer = self.gridContainer
         gridItemContainer = self.gridItemContainer
         settings = self.settings
@@ -692,6 +693,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         gridContainer.setSize((width * zoomScale, height * zoomScale))
         gridView.setMerzViewSize((width * zoomScale, height * zoomScale))
         gridContainer.setBackgroundColor(self.backgroundColor)
+        scrollView.setBackgroundColor_(ezui.makeColor(self.backgroundColor))
 
     # Pre-Processing
 
