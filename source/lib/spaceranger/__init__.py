@@ -49,6 +49,28 @@ modeColors = dict(
         locationTextBackground=(1, 1, 1, 0.95),
     ),
 )
+zoomPointSizeOptions = [
+    25,
+    50,
+    100,
+    150,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900,
+    1000,
+    1250,
+    1500,
+    1750,
+    2000,
+    2500,
+    3000
+]
+zoomPointSizeOptionTitles = [f"{i} pt" for i in zoomPointSizeOptions]
 
 itemPointSize = 100
 itemPadding = itemPointSize * 0.1
@@ -56,8 +78,8 @@ itemSpacing = itemPointSize * 0.1
 gridInset = itemPointSize * 0.1
 itemCornerRadius = itemPointSize * 0.07
 
-minZoomScale = 0.5
-maxZoomScale = 50.0
+minZoomScale = min(zoomPointSizeOptions) / itemPointSize
+maxZoomScale = max(zoomPointSizeOptions) / itemPointSize
 
 defaults = dict(
     applyRules=False,
@@ -230,12 +252,15 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             startText = "/?"
 
         content = """
-        * HorizontalStack           @toolbarStack
-        > [__]                      @textField
-        > ({character.magnify})     @zoomButton
-        > ({gearshape})             @settingsButton
+        * HorizontalStack   @toolbarStack
+        > [__]              @textField
+        > [_ ...]           @zoomPointSizeComboBox
+        > ({arrow.left.and.line.vertical.and.arrow.right}) @zoomToWidthButton
+        > ({arrow.up.and.line.horizontal.and.arrow.down})  @zoomToHeightButton
+        > ---               @line1
+        > ({gearshape})     @settingsButton
 
-        * ScrollingMerzView         @gridView
+        * ScrollingMerzView @gridView
         """
         numberFieldWidth = 50
         descriptionData = dict(
@@ -251,7 +276,19 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 value=startText,
                 width="fill"
             ),
-            zoomButton=dict(
+            zoomPointSizeComboBox=dict(
+                items=zoomPointSizeOptionTitles,
+                value=f"{itemPointSize} pt",
+                width=80,
+                gravity="trailing"
+            ),
+            zoomToWidthButton=dict(
+                gravity="trailing"
+            ),
+            zoomToHeightButton=dict(
+                gravity="trailing"
+            ),
+            line1=dict(
                 gravity="trailing"
             ),
             settingsButton=dict(
@@ -733,15 +770,36 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     # Zoom
 
-    def zoomButtonCallback(self, sender):
-        SpaceRangerViewZoomWindowController(
-            parent=sender,
-            value=self.gridContainer.getContainerScale(),
-            callback=self._zoomPopoverCallback,
-        )
+    def zoomPointSizeComboBoxCallback(self, sender):
+        value = sender.get()
+        value = value.replace("pt", "")
+        value = value.strip()
+        try:
+            value = float(value)
+        except ValueError:
+            return
+        scale = value / itemPointSize
+        self.performViewZoom(scale=scale)
 
-    def _zoomPopoverCallback(self, value):
-        self.performViewZoom(value)
+    def zoomToWidthButtonCallback(self, sender):
+        self._zoomToFit("width")
+
+    def zoomToHeightButtonCallback(self, sender):
+        self._zoomToFit("height")
+
+    def _zoomToFit(self, direction):
+        gridView = self.gridView
+        scrollView = self.gridView.getNSScrollView()
+        gridContainer = self.gridContainer
+        zoomScale = gridContainer.getContainerScale()
+        containerWidth, containerHeight = gridView.getMerzViewSize()
+        availableWidth, availableHeight = scrollView.contentSize()
+        if direction == "width":
+            scale = availableWidth / containerWidth
+        elif direction == "height":
+            scale = availableHeight / containerHeight
+        zoomScale *= scale
+        self.performViewZoom(scale=zoomScale)
 
     def performViewZoom(self, scale=None, event=None):
         gridView = self.gridView
@@ -796,6 +854,13 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         gridContainer.setContainerScale(scale)
         gridView.setMerzViewSize((width, height))
         documentView.scrollPoint_((x, y))
+        # update the point size combo box
+        pointSize = itemPointSize * scale
+        pointSize = int(round(pointSize))
+        comboBox = self.w.getItem("zoomPointSizeComboBox")
+        title = f"{pointSize} pt"
+        if comboBox.get() != title:
+            comboBox.set(title)
 
     # Settings
 
@@ -1121,47 +1186,6 @@ def tempEventUnpack(event):
         magnification=event.magnification()
     )
     return unpacked
-
-
-# ------------
-# Zoom Popover
-# ------------
-
-class SpaceRangerViewZoomWindowController(ezui.WindowController):
-
-    def build(self,
-            parent,
-            value,
-            callback
-        ):
-        self.callback = callback
-        content = """
-        ---X--- @zoomSlider
-        """
-        descriptionData = dict(
-            zoomSlider=dict(
-                minValue=minZoomScale,
-                maxValue=maxZoomScale,
-                value=value
-            )
-        )
-        self.w = ezui.EZPopover(
-            content=content,
-            descriptionData=descriptionData,
-            parent=parent,
-            parentAlignment="right",
-            controller=self,
-            size=(200, "auto")
-        )
-
-    def started(self):
-        self.w.open()
-
-    def destory(self):
-        self.callback = None
-
-    def zoomSliderCallback(self, sender):
-        self.callback(sender.get())
 
 
 # ----------------
