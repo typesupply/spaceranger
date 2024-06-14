@@ -506,8 +506,10 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     def _makeAxisSteps(self, axisName, steps):
         axis = self.ufoOperator.getAxis(axisName)
-        axisMinimum = axis.minimum
-        axisMaximum = axis.maximum
+        # the values will be in user space.
+        # convert them to design space.
+        axisMinimum = axis.map_forward(axis.minimum)
+        axisMaximum = axis.map_forward(axis.maximum)
         locations = []
         step = (axisMaximum - axisMinimum) / (steps - 1)
         for i in range(steps):
