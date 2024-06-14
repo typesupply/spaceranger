@@ -149,3 +149,23 @@ settings = dict(
 
 spaceranger.setWindowSettings(settings, ufoOperator=CurrentDesignspace())
 ```
+
+## Change Log
+
+### 1.2
+
+- Rule changes are now observed. Edit your rules in DSE and watch the result update live! (Well, after a 0.75 second Subscriber delay.)
+- The zoom popover has been replaced with a combo box.
+- New zoom to fit to width and height buttons were added because I was tired of doing this manually while drawing.
+- You can mouse with the standard `command-space-drag` key/mouse combination.
+- The text displayed in the items on `option + hover` is improved. Numbers are rounded, "Source" is added if the item is a source and "Instance" is added if the item is an instance.
+- You can now insert all instances. This is useful when you are looking at a big grid while working on rules and you need to see where the instances are in the grid.
+- Fixed an issue with range clipping when "Count" mode was set for the x/y and an axis has a mapping defined.
+
+### 1.1
+
+- Fix the background color in the scroll view when dark mode is active.
+
+### 1.0
+
+It's new.

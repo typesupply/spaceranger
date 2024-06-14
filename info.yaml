@@ -4,7 +4,7 @@ developer: Type Supply
 developerURL: http://typesupply.com
 launchAtStartUp: true
 mainScript: main.py
-version: "1.1"
+version: "1.2"
 addToMenu:
 - path: menu_currentDesignspace.py
   preferredName: Current Designspace
