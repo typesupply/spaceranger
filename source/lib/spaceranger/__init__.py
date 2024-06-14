@@ -94,6 +94,7 @@ defaults = dict(
     columnWidthMode="fit",
     insertSources=False,
     highlightSources=False,
+    insertInstances=False,
     highlightInstances=False,
     usePrepolator=False,
     highlightUnsmooths=False,
@@ -354,6 +355,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         xAxisName = settings["xAxisName"]
         yAxisName = settings["yAxisName"]
         insertSources = settings["insertSources"]
+        insertInstances = settings["insertInstances"]
         # establish the values for unchosen axes
         defaultAxes = {}
         for axis in self.ufoOperator.getOrderedContinuousAxes():
@@ -396,6 +398,18 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 rowLocations = settings["yAxisLocations"]
             else:
                 rowLocations = self._makeAxisSteps(yAxisName, settings["yAxisCount"])
+        # insert instances
+        if insertInstances:
+            for location in instanceLocations:
+                columnLocation = location[xAxisName]
+                if columnLocation not in columnLocations:
+                    columnLocations.append(columnLocation)
+                    sortColumnLocations = True
+                if yAxisName:
+                    rowLocation = location[yAxisName]
+                    if rowLocation not in rowLocations:
+                        rowLocations.append(rowLocation)
+                        sortRowLocations = True
         # sources
         sourceLocations = []
         for source in self.ufoOperator.findSourceDescriptorsForDiscreteLocation(discreteLocation):
@@ -409,8 +423,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 if yAxisName:
                     rowLocation = location[yAxisName]
                     if rowLocation not in rowLocations:
-                        sortRowLocations = True
                         rowLocations.append(rowLocation)
+                        sortRowLocations = True
         if sortColumnLocations:
             columnLocations.sort()
         if sortRowLocations:
@@ -1309,6 +1323,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         insertSources = settings["insertSources"]
         highlightSources = settings["highlightSources"]
+        insertInstances = settings["insertInstances"]
         highlightInstances = settings["highlightInstances"]
 
         usePrepolator = settings["usePrepolator"]
@@ -1387,6 +1402,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         [ ] Highlight           @highlightSourcesCheckbox
 
         : Instances:
+        [ ] Insert              @insertInstancesCheckbox
         [ ] Highlight           @highlightInstancesCheckbox
 
         !§ Pre-Process
@@ -1450,6 +1466,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             ),
             highlightSourcesCheckbox=dict(
                 value=highlightSources
+            ),
+            insertInstancesCheckbox=dict(
+                value=insertInstances
             ),
             highlightInstancesCheckbox=dict(
                 value=highlightInstances
@@ -1570,6 +1589,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["columnWidthMode"] = ["fit", "mono"][values["columnWidthsRadioButtons"]]
         settings["insertSources"] = values["insertSourcesCheckbox"]
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
+        settings["insertInstances"] = values["insertInstancesCheckbox"]
         settings["highlightInstances"] = values["highlightInstancesCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
