@@ -64,13 +64,13 @@ zoomPointSizeOptions = [
     900,
     1000,
     1250,
-    1500,
-    1750,
-    2000,
-    2500,
-    3000
+    1500
 ]
 zoomPointSizeOptionTitles = [f"{i} pt" for i in zoomPointSizeOptions]
+zoomUpSlowFactor = 1.05
+zoomDownSlowFactor = 1.0 / zoomUpSlowFactor
+zoomUpFastFactor = 1.2
+zoomDownFastFactor = 1.0 / zoomUpFastFactor
 
 itemPointSize = 100
 itemPadding = itemPointSize * 0.1
@@ -801,6 +801,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         zoomScale *= scale
         self.performViewZoom(scale=zoomScale)
 
+    _mouseZoomLastLocation = None
+
     def performViewZoom(self, scale=None, event=None):
         gridView = self.gridView
         documentView = gridView.getMerzView().getNSView()
@@ -810,49 +812,82 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         unscaledWidth, unscaledHeight = gridView.getMerzViewSize()
         unscaledWidth /= oldScale
         unscaledHeight /= oldScale
+        # calculate the zoom factor pased on the event input.
         if event is not None:
+            eventType = event.type()
             eventInfo = merz.unpackEvent(event)
-            if "magnification" not in eventInfo:
+            if eventType not in mousePhaseSimulationMap and "magnification" not in eventInfo:
                 eventInfo = tempEventUnpack(event)
-            event = eventInfo
-            magnification = event["magnification"]
-            if magnification < 0:
-                factor = 0.9
+            # mouse zoom
+            if self.inMouseZoom:
+                # simulate the phase
+                eventInfo["phase"] = mousePhaseSimulationMap.get(eventType)
+                phase = eventInfo["phase"]
+                # return
+                if phase == "began" or self._mouseZoomLastLocation is None:
+                    self._zoomFocalPoint = eventInfo["location"]
+                    self._mouseZoomLastLocation = eventInfo["location"]
+                    factor = 1.0
+                elif phase == "ended":
+                    self._mouseZoomLastLocation = None
+                    factor = 1.0
+                else:
+                    x1, y1 = self._mouseZoomLastLocation
+                    x2, y2 = eventInfo["location"]
+                    if x2 < x1:
+                        factor = zoomDownSlowFactor
+                    else:
+                        factor = zoomUpSlowFactor
+            # gesture zoom
             else:
-                factor = 1.1
+                magnification = eventInfo["magnification"]
+                phase = eventInfo["phase"]
+                if magnification < 0:
+                    factor = zoomDownSlowFactor
+                else:
+                    factor = zoomUpSlowFactor
             scale = oldScale * factor
         if scale > maxZoomScale:
             scale = maxZoomScale
         elif scale < minZoomScale:
             scale = minZoomScale
+        # calculate the new size
         width = unscaledWidth * scale
         height = unscaledHeight * scale
+        # calculate the originating focal point in base
+        # units, then scale the point and make sure it is
+        # in the visible rect of the scroll view
         if event is not None:
-            phase = event["phase"]
             if phase == "began":
                 x, y = documentView.convertPoint_fromView_(
-                    event["location"],
+                    eventInfo["location"],
                     None
                 )
                 x /= oldScale
                 y /= oldScale
-                self.magnifyWithEventFocalPoint = (x, y)
-            x, y = self.magnifyWithEventFocalPoint
-            if phase == "ended":
-                del self.magnifyWithEventFocalPoint
+                self._zoomFocalPoint = (x, y)
+            x, y = self._zoomFocalPoint
+            # XXX
+            # This triggers a traceback, but it could be related to my Wacom troubles.
+            # Bizarrely, if I insert a print to get the phase to debug, the traceback isn't raised.
+            # if phase == "ended":
+            #     del self._zoomFocalPoint
         else:
             (xMin, yMin), (visibleWidth, visibleHeight) = documentView.visibleRect()
             x = xMin + (visibleWidth / 2)
             y = yMin + (visibleHeight / 2)
             x /= oldScale
             y /= oldScale
+        visibleWidth, visibleHeight = documentView.visibleRect().size
         x *= scale
         y *= scale
-        visibleWidth, visibleHeight = documentView.visibleRect().size
         x = x - (visibleWidth / 2)
         y = y - (visibleHeight / 2)
+        # set the new scale and size
         gridContainer.setContainerScale(scale)
         gridView.setMerzViewSize((width, height))
+        # ask the document view to scroll the focal point
+        # into the visible rect if it isn't already there
         documentView.scrollPoint_((x, y))
         # update the point size combo box
         pointSize = itemPointSize * scale
@@ -1038,6 +1073,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         return hits
 
     def mouseDown(self, sender, event):
+        if self.inMouseZoom:
+            self.performViewZoom(event=event)
+            return
         event = merz.unpackEvent(event)
         clickCount = event["clickCount"]
         if clickCount != 2:
@@ -1055,6 +1093,15 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                         font.openInterface()
                     break
 
+    def mouseDragged(self, sender, event):
+        if self.inMouseZoom:
+            self.performViewZoom(event=event)
+
+    def mouseUp(self, sender, event):
+        if self.inMouseZoom:
+            self.performViewZoom(event=event)
+        self.inMouseZoom = False
+
     def acceptsMouseMoved(self, sender):
         return True
 
@@ -1068,19 +1115,23 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             locationLayer = layer.getSublayer("locationText")
             locationLayer.setVisible(layer in hits)
 
+    inMouseZoom = False
+
     def keyDown(self, sender, event):
         event = merz.unpackEvent(event)
-        if "command" not in event["modifiers"]:
-            return
+        modifiers = event["modifiers"]
         character = event["character"]
-        scale = self.gridContainer.getContainerScale()
-        if character == "=":
-            scale *= 1.1
-        elif character == "-":
-            scale *= 0.9
-        else:
-            return
-        self.performViewZoom(scale=scale)
+        if all((modifiers == ["command"], character == " ")):
+            self.inMouseZoom = True
+        elif all((modifiers == ["command"], character in "-=")):
+            scale = self.gridContainer.getContainerScale()
+            if character == "=":
+                scale *= zoomUpFastFactor
+            elif character == "-":
+                scale *= zoomDownFastFactor
+            else:
+                return
+            self.performViewZoom(scale=scale)
 
     # Scripting API
 
@@ -1187,6 +1238,11 @@ def tempEventUnpack(event):
     )
     return unpacked
 
+mousePhaseSimulationMap = {
+    AppKit.NSEventTypeLeftMouseDown : "began",
+    AppKit.NSEventTypeLeftMouseDragged : "changed",
+    AppKit.NSEventTypeLeftMouseUp : "ended"
+}
 
 # ----------------
 # Settings Popover
