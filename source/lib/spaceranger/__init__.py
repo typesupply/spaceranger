@@ -6,6 +6,7 @@ from fontTools.designspaceLib import processRules
 import AppKit
 import merz
 import ezui
+from ezui.tools.converters import makeValueToStringConverter
 from mojo.UI import (
     splitText,
     inDarkMode
@@ -452,7 +453,25 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                     name="unsmoothHighlights"
                 )
                 # location info
-                locationText = "\n".join([f"{k}: {v}" for k, v in sorted(location.items())])
+                locationText = []
+                if base.getInfoValue("isSource"):
+                    locationText.append(
+                        dict(
+                            text="Source\n",
+                            weight="bold"
+                        )
+                    )
+                if base.getInfoValue("isInstance"):
+                    locationText.append(
+                        dict(
+                            text="Instance\n",
+                            weight="bold"
+                        )
+                    )
+                locationText += [
+                    dict(text=f"• {k}: {numberToStringConverter(v)}\n")
+                    for k, v in sorted(location.items())
+                ]
                 locationInfoLayer = base.appendTextBoxSublayer(
                     name="locationText",
                     horizontalAlignment="left",
@@ -1590,6 +1609,7 @@ def splitSuffix(glyphName):
         return None
     return suffix
 
+numberToStringConverter = makeValueToStringConverter("number")
 
 # ---------------------
 # Post-Processing Tools
