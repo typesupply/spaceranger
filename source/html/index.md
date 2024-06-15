@@ -152,6 +152,10 @@ spaceranger.setWindowSettings(settings, ufoOperator=CurrentDesignspace())
 
 ## Change Log
 
+### 1.3
+
+- Fixed a bug that prevented from opening directly from a designspace file instead of from a DSE window.
+
 ### 1.2
 
 - Rule changes are now observed. Edit your rules in DSE and watch the result update live! (Well, after a 0.75 second Subscriber delay.)

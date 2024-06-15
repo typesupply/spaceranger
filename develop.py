@@ -11,13 +11,15 @@ with open(root / "info.yaml") as yamlFile:
 with open(root / "build.yaml") as yamlFile:
     buildData = yaml.safe_load(yamlFile)
 
+infoData["path"] = infoData.pop("extensionPath")
+
 bundle = ExtensionBundle(
     **infoData,
     license=buildData.get("license", ""),
     requirements=buildData.get("requirements", "") or ""
 )
 
-destPath = root / "build" / buildData.get("path", f"{bundle.name}.roboFontExt")
+destPath = root / "build" / buildData.get("extensionPath", f"{bundle.name}.roboFontExt")
 
 htmlFolder = buildData.get("htmlFolder")
 if htmlFolder is not None:
