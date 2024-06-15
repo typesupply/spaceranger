@@ -147,6 +147,7 @@ def _getSpaceRanger(ufoOperator=None, font=None, path=None, createOperator=False
         ufoOperator = _getExistingUFOOperatorForPath(path)
         if ufoOperator is None and createOperator:
             ufoOperator = OpenDesignspace(path=path, showInterface=False)
+            ufoOperator.loadFonts()
     if ufoOperator is None:
         return None
     tempLib = getattr(ufoOperator, "tempLib", {})
