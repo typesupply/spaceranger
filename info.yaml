@@ -1,10 +1,9 @@
 name: Space Ranger
-extensionPath: Space_Ranger.roboFontExt
 developer: Type Supply
 developerURL: http://typesupply.com
 launchAtStartUp: true
 mainScript: main.py
-version: "1.3"
+version: 1.3.1
 addToMenu:
 - path: menu_currentDesignspace.py
   preferredName: Current Designspace
@@ -13,7 +12,5 @@ addToMenu:
   preferredName: Open Designspace
   shortKey: ""
 html: true
-# timeStamp: 1638366053.720922
 requiresVersionMajor: '4'
 requiresVersionMinor: '5b'
-# expireDate: '2020-12-31'

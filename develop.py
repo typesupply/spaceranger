@@ -5,13 +5,10 @@ from mojo.extensions import ExtensionBundle
 
 root = Path(__file__).parent
 
-
 with open(root / "info.yaml") as yamlFile:
     infoData = yaml.safe_load(yamlFile)
 with open(root / "build.yaml") as yamlFile:
     buildData = yaml.safe_load(yamlFile)
-
-infoData["path"] = infoData.pop("extensionPath")
 
 bundle = ExtensionBundle(
     **infoData,
