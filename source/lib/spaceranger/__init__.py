@@ -731,9 +731,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             # set the unsmooths
             unsmoothHighlightLayer = glyphContainerLayer.getSublayer("unsmoothHighlights")
             unsmoothHighlightLayer.clearSublayers()
-            if all((checkSmooths, glyph is not None, glyph.name != "None")):
-                compatible = glyph.asFontParts().isCompatible(model.asFontParts())[0]
-                if compatible:
+            if checkSmooths:
+                if len(glyph.contours) == len(model.contours):
                     unsmoothHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
                     unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
                     for contourIndex, segmentIndex in modelSmooths:
