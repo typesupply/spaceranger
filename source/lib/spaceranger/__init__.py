@@ -1686,6 +1686,12 @@ def getRelativeSmoothness(
         bcpOut = unwrapPoint(nextSegment.offCurve[0])
         inPoints = (previousAnchor, anchor)
         outPoints = (anchor, bcpOut)
+    else:
+        # this edge case can happen if teh contours being
+        # compared have different start points. in that case,
+        # there is a chance that this is now testing the
+        # smooth status of a line-line segment. fall back safely.
+        return 0
     inAngle = calculateAngle(*inPoints)
     outAngle = calculateAngle(*outPoints)
     diff = abs(inAngle - outAngle)
