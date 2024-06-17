@@ -731,28 +731,30 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             # set the unsmooths
             unsmoothHighlightLayer = glyphContainerLayer.getSublayer("unsmoothHighlights")
             unsmoothHighlightLayer.clearSublayers()
-            if checkSmooths:
-                unsmoothHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
-                unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
-                for contourIndex, segmentIndex in modelSmooths:
-                    contour = glyph.contours[contourIndex]
-                    v = getRelativeSmoothness(
-                        contour=contour,
-                        segmentIndex=segmentIndex,
-                        threshold=unsmoothThreshold + smoothToleranceBase
-                    )
-                    if v:
-                        segment = contour.segments[segmentIndex]
-                        onCurve = segment.onCurve
-                        x = onCurve.x
-                        y = onCurve.y
-                        unsmoothHighlightLayer.appendOvalSublayer(
-                            position=(x-unsmoothHighlightHalfSize, y-unsmoothHighlightHalfSize),
-                            size=(unsmoothHighlightSize, unsmoothHighlightSize),
-                            fillColor=None,
-                            strokeColor=(1, 0, 0, v),
-                            strokeWidth=1
+            if all((checkSmooths, glyph is not None, glyph.name != "None")):
+                compatible = glyph.asFontParts().isCompatible(model.asFontParts())[0]
+                if compatible:
+                    unsmoothHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
+                    unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
+                    for contourIndex, segmentIndex in modelSmooths:
+                        contour = glyph.contours[contourIndex]
+                        v = getRelativeSmoothness(
+                            contour=contour,
+                            segmentIndex=segmentIndex,
+                            threshold=unsmoothThreshold + smoothToleranceBase
                         )
+                        if v:
+                            segment = contour.segments[segmentIndex]
+                            onCurve = segment.onCurve
+                            x = onCurve.x
+                            y = onCurve.y
+                            unsmoothHighlightLayer.appendOvalSublayer(
+                                position=(x-unsmoothHighlightHalfSize, y-unsmoothHighlightHalfSize),
+                                size=(unsmoothHighlightSize, unsmoothHighlightSize),
+                                fillColor=None,
+                                strokeColor=(1, 0, 0, v),
+                                strokeWidth=1
+                            )
         # set the grid size
         width = gridInset * 2
         width += sum(columnWidths)
