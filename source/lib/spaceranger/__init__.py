@@ -99,6 +99,7 @@ defaults = dict(
     highlightInstances=False,
     usePrepolator=False,
     highlightUnsmooths=False,
+    invertColors=False,
     autoSmoothDefault=True
 )
 publicWindowSettings = list(defaults.keys())
@@ -242,9 +243,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def build(self,
             ufoOperator=None
         ):
-
-        self.loadColors()
-
         if not hasattr(ufoOperator, "tempLib"):
             ufoOperator.tempLib = {}
         ufoOperator.tempLib["SpaceRangerWindowController"] = weakref.ref(self)
@@ -336,6 +334,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.gridContainer.setContainerScale(1.0)
 
         self.loadSettings()
+        self.loadColors()
         self.loadOperatorOptions()
         self.parseTextInput()
 
@@ -965,10 +964,17 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             setExtensionDefault(key, value)
 
     def loadColors(self):
+        invertColors = self.settings["invertColors"]
         if inDarkMode():
-            colors = modeColors["dark"]
+            if invertColors:
+                colors = modeColors["light"]
+            else:
+                colors = modeColors["dark"]
         else:
-            colors = modeColors["light"]
+            if invertColors:
+                colors = modeColors["dark"]
+            else:
+                colors = modeColors["light"]
         self.backgroundColor = colors["background"]
         self.fillColor = colors["fill"]
         self.sourceBorderColor = colors["sourceBorder"]
@@ -1052,6 +1058,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self._settingsChanged()
 
     def _settingsChanged(self):
+        self.loadColors()
         self.buildItems()
         self.prepareItems()
         self.updateItems()
@@ -1348,6 +1355,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         highlightSources = settings["highlightSources"]
         insertInstances = settings["insertInstances"]
         highlightInstances = settings["highlightInstances"]
+        invertColors = settings["invertColors"]
 
         usePrepolator = settings["usePrepolator"]
 
@@ -1427,6 +1435,11 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         [ ] Insert              @insertInstancesCheckbox
         [ ] Highlight           @highlightInstancesCheckbox
 
+        ---
+
+        :
+        [ ] Invert Colors       @invertColorsCheckbox
+
         !§ Pre-Process
 
         :
@@ -1492,6 +1505,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             ),
             highlightInstancesCheckbox=dict(
                 value=highlightInstances
+            ),
+            invertColorsCheckbox=dict(
+                value=invertColors
             ),
 
             usePrepolatorCheckbox=dict(
@@ -1612,6 +1628,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
         settings["insertInstances"] = values["insertInstancesCheckbox"]
         settings["highlightInstances"] = values["highlightInstancesCheckbox"]
+        settings["invertColors"] = values["invertColorsCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
         settings["autoSmoothDefault"] = values["autoSmoothDefaultCheckbox"]
