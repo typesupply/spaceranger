@@ -1026,15 +1026,21 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.settings["glyphNameSuffixes"] = list(sorted(suffixes))
         self.settings["glyphNameSuffix"] = "_none_"
 
+    _gridSettingsWindowController = None
+
     def settingsButtonCallback(self, sender):
-        SpaceRangerGridSettingsWindowController(
+        if self._gridSettingsWindowController is not None:
+            self._gridSettingsWindowController.closePopover()
+            return
+        self._gridSettingsWindowController = SpaceRangerGridSettingsWindowController(
             parent=sender,
             settings=self.settings,
             ufoOperator=self.ufoOperator,
-            callback=self._settingsPopoverCallback,
+            editCallback=self._settingsPopoverEditCallback,
+            closeCallback=self._settingsPopoverCloseCallback
         )
 
-    def _settingsPopoverCallback(self):
+    def _settingsPopoverEditCallback(self):
         self._settingsChanged()
 
     def _settingsChanged(self):
@@ -1042,6 +1048,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.prepareItems()
         self.updateItems()
         self.writeSettings()
+
+    def _settingsPopoverCloseCallback(self):
+        self._gridSettingsWindowController = None
 
     # RoboFont Observations
 
@@ -1291,10 +1300,12 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             parent,
             settings={},
             ufoOperator=None,
-            callback=None
+            editCallback=None,
+            closeCallback=None
         ):
         self.settings = settings
-        self.callback = callback
+        self.editCallback = editCallback
+        self.closeCallback = closeCallback
 
         discreteLocationNames = [
             ufoOperator.nameLocation(dL)
@@ -1502,6 +1513,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             parent=parent,
             controller=self
         )
+        self.w.bind("will close", self.windowWillClose)
         self.xAxisModeRadioButtonsCallback(self.w.getItem("xAxisModeRadioButtons"))
         self.yAxisModeRadioButtonsCallback(self.w.getItem("yAxisModeRadioButtons"))
 
@@ -1510,6 +1522,13 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
     def destroy(self):
         self.callback = None
+
+    def windowWillClose(self, sender):
+        self.w.unbind("will close", self.windowWillClose)
+        self.closeCallback()
+
+    def closePopover(self):
+        self.w.close()
 
     def xAxisModeRadioButtonsCallback(self, sender):
         settings = self.settings
@@ -1599,7 +1618,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
         settings["unsmoothThreshold"] = values["unsmoothThresholdSlider"]
         settings["autoSmoothDefault"] = values["autoSmoothDefaultCheckbox"]
-        self.callback()
+        self.editCallback()
 
 
 def parseRangeInput(value):
