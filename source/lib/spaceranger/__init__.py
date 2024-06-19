@@ -266,14 +266,21 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         * HorizontalStack   @toolbarStack
         > [__]              @textField
         > [_ ...]           @zoomPointSizeComboBox
-        > ({arrow.left.and.line.vertical.and.arrow.right}) @zoomToWidthButton
-        > ({arrow.up.and.line.horizontal.and.arrow.down})  @zoomToHeightButton
+        > ({arrow.left.and.right.square}) @zoomToWidthButton
+        > ({arrow.up.and.down.square})    @zoomToHeightButton
+        # fit to best symbol: arrow.up.left.and.arrow.down.right.square
         > ---               @line1
         > ({gearshape})     @settingsButton
 
         * ScrollingMerzView @gridView
         """
         numberFieldWidth = 50
+        zoomSymbolConfiguration=dict(
+            pointSize=16,
+            weight="light"
+        )
+        settingsSymbolConfiguration = dict(zoomSymbolConfiguration)
+        settingsSymbolConfiguration["pointSize"] = 15
         descriptionData = dict(
             content=dict(
                 spacing=0
@@ -294,16 +301,19 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 gravity="trailing"
             ),
             zoomToWidthButton=dict(
-                gravity="trailing"
+                gravity="trailing",
+                symbolConfiguration=zoomSymbolConfiguration
             ),
             zoomToHeightButton=dict(
-                gravity="trailing"
+                gravity="trailing",
+                symbolConfiguration=zoomSymbolConfiguration
             ),
             line1=dict(
                 gravity="trailing"
             ),
             settingsButton=dict(
-                gravity="trailing"
+                gravity="trailing",
+                symbolConfiguration=settingsSymbolConfiguration
             ),
             gridView=dict(
                 backgroundColor=(1, 1, 1, 1),
