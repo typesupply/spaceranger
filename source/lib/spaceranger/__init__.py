@@ -1437,8 +1437,8 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         ---
 
-        :
-        [ ] Invert Colors       @invertColorsCheckbox
+        : Colors:
+        [ ] Invert             @invertColorsCheckbox
 
         !§ Pre-Process
 
