@@ -14,7 +14,8 @@ from mojo.UI import (
 from mojo.extensions import (
     registerExtensionDefaults,
     getExtensionDefault,
-    setExtensionDefault
+    setExtensionDefault,
+    removeExtensionDefault
 )
 from mojo.subscriber import Subscriber
 from fontParts.world import(
@@ -98,7 +99,6 @@ defaults = dict(
     highlightInstances=False,
     usePrepolator=False,
     highlightUnsmooths=False,
-    unsmoothThreshold=2.0,
     autoSmoothDefault=True
 )
 publicWindowSettings = list(defaults.keys())
@@ -107,6 +107,16 @@ for k, v in defaults.items():
     d[extensionKeyStub + k] = v
 defaults = d
 registerExtensionDefaults(defaults)
+
+# ---------------
+# Legacy Settings
+# ---------------
+
+unsmoothThresholdKey = extensionKeyStub + "unsmoothThreshold"
+unsmoothThresholdFallback = "undefined"
+
+if getExtensionDefault(unsmoothThresholdKey, fallback=unsmoothThresholdFallback) != unsmoothThresholdFallback:
+    removeExtensionDefault(unsmoothThresholdKey)
 
 
 # ---------
@@ -602,7 +612,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         highlightSources = settings["highlightSources"]
         highlightInstances = settings["highlightInstances"]
         checkSmooths = settings["highlightUnsmooths"]
-        unsmoothThreshold = settings["unsmoothThreshold"]
         autoSmoothDefault = settings["autoSmoothDefault"]
         # run prepolator
         self._runPrepolator(glyphNames)
@@ -740,7 +749,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                         v = getRelativeSmoothness(
                             contour=contour,
                             segmentIndex=segmentIndex,
-                            threshold=unsmoothThreshold + smoothToleranceBase
                         )
                         if v:
                             segment = contour.segments[segmentIndex]
@@ -1344,7 +1352,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         usePrepolator = settings["usePrepolator"]
 
         highlightUnsmooths = settings["highlightUnsmooths"]
-        unsmoothThreshold = settings["unsmoothThreshold"]
         autoSmoothDefault = settings["autoSmoothDefault"]
 
         self.suffixes = ["_none_", "_auto_"]
@@ -1429,8 +1436,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         :
         [X] Highlight Unsmooths @highlightUnsmoothsCheckbox
-        : Unsmooth Threshold:
-        ---X--- 123             @unsmoothThresholdSlider
         :
         [X] Auto-Smooth Default @autoSmoothDefaultCheckbox
         """
@@ -1495,13 +1500,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
             highlightUnsmoothsCheckbox=dict(
                 value=highlightUnsmooths
-            ),
-            unsmoothThresholdSlider=dict(
-                minValue=0,
-                maxValue=4,
-                value=unsmoothThreshold,
-                tickMarks=21,
-                stopOnTickMarks=True
             ),
             autoSmoothDefaultCheckbox=dict(
                 value=autoSmoothDefault
@@ -1616,7 +1614,6 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["highlightInstances"] = values["highlightInstancesCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
-        settings["unsmoothThreshold"] = values["unsmoothThresholdSlider"]
         settings["autoSmoothDefault"] = values["autoSmoothDefaultCheckbox"]
         self.editCallback()
 
