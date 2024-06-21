@@ -436,7 +436,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         baseLocation.update(defaultAxes)
         # instances
         instanceLocations = [
-            instance.location for instance in self.ufoOperator.instances
+            instance.getFullDesignLocation(self.ufoOperator.doc) for instance in self.ufoOperator.instances
         ]
         # column count
         sortColumnLocations = False
@@ -480,7 +480,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         # sources
         sourceLocations = []
         for source in self.ufoOperator.findSourceDescriptorsForDiscreteLocation(discreteLocation):
-            location = source.location
+            location = source.getFullDesignLocation(self.ufoOperator.doc)
             sourceLocations.append(location)
             if insertSources:
                 columnLocation = location[xAxisName]
@@ -1106,6 +1106,21 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             xAxisName = None
         if yAxisName and yAxisName not in axisNames:
             yAxisName = None
+        # pick an initial pair of axes. type designers
+        # like to look at x=width, y=weight, so that's
+        # the preferred default.
+        if xAxisName is None and axisNames:
+            xAxisName = axisNames[0]
+            if "width" in axisNames:
+                xAxisName = "width"
+        if yAxisName is None and len(axisNames) > 1:
+            if "weight" in axisNames and xAxisName != "weight":
+                yAxisName = "weight"
+            if yAxisName is None:
+                for name in axisNames:
+                    if name != xAxisName:
+                        yAxisName = name
+                        break
         self.settings["axisNames"] = axisNames
         self.settings["xAxisName"] = xAxisName
         self.settings["yAxisName"] = yAxisName
