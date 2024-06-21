@@ -8,6 +8,7 @@ If you want to make the contents of the view larger or smaller, do one of these:
 
 - Hit the vertical arrows to fit the height of the view contents to the view.
 - Hit the horizontal arrows to fit the width of the view contents to the view.
+- Hit the diagonal arrows to fit the width and height of the view contents to the view.
 - Click inside the view and use the standard *pinch-to-zoom* gesture.
 - Click inside the view and use the standard *command-space-drag* to do an "animated zoom."
 - Click inside the view and use the `command -` and `command +` key commands.
@@ -39,6 +40,8 @@ There are a lot of settings.
 - Locations: Specific locations along the axis. Enter the space delimited axis locations in the text field below the mode options. *‌(Tip: extrapolation is allowed.)*
 - Instances: The axis locations of all instances defined in the designspace.
 
+**Reverse** If the locations should be shown in reverse order.
+
 **Widths** The columns can be fit to their content or they can all have the same width.
 
 **Y Axis** The name of the axis to use for the y axis in the grid.
@@ -47,6 +50,8 @@ There are a lot of settings.
 - Count: A specific number of rows. The minimum location will be the axis' minimum value and the maximum location will be the axis' maximum value. Intermediate locations will be in even increments. Enter the number in the text field below the mode options.
 - Locations: Specific locations along the axis. Enter the space delimited axis locations in the text field below the mode options. *‌(Tip: extrapolation is allowed.)*
 - Instances: The axis locations of all instances defined in the designspace.
+
+**Reverse** If the locations should be shown in reverse order.
 
 **Sources**
 
@@ -154,6 +159,12 @@ spaceranger.setWindowSettings(settings, ufoOperator=CurrentDesignspace())
 ```
 
 ## Change Log
+
+### 1.5 (in progress)
+
+- Added a button that will fit the content to the view based on width and height.
+- Added reverse options for the x and y axes.
+- Fit to width/height/both are now persistent until you explicitly change the zoom level in the window. In other words, if you have a "fit to ..." active, the zoom in the view will be updated when you switch glyphs.
 
 ### 1.4
 
