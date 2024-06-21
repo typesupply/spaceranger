@@ -238,6 +238,45 @@ def setWindowSettings(settings, ufoOperator=None, font=None):
 # Window Controller
 # -----------------
 
+zoomSymbolSize = 16
+zoomSymbolConfiguration=dict(
+    pointSize=zoomSymbolSize,
+    weight="light"
+)
+
+zoomToWidthInactiveImage = ezui.makeImage(
+    symbolName="arrow.left.and.right.square",
+    template=True
+)
+zoomToWidthInactiveImage = ezui.tools.applySymbolConfigurationToImage(zoomToWidthInactiveImage, zoomSymbolConfiguration)
+zoomToWidthActiveImage = ezui.makeImage(
+    symbolName="arrow.left.and.right.square.fill",
+    template=True
+)
+zoomToWidthActiveImage = ezui.tools.applySymbolConfigurationToImage(zoomToWidthActiveImage, zoomSymbolConfiguration)
+
+zoomToHeightInactiveImage = ezui.makeImage(
+    symbolName="arrow.up.and.down.square",
+    template=True
+)
+zoomToHeightInactiveImage = ezui.tools.applySymbolConfigurationToImage(zoomToHeightInactiveImage, zoomSymbolConfiguration)
+zoomToHeightActiveImage = ezui.makeImage(
+    symbolName="arrow.up.and.down.square.fill",
+    template=True
+)
+zoomToHeightActiveImage = ezui.tools.applySymbolConfigurationToImage(zoomToHeightActiveImage, zoomSymbolConfiguration)
+
+zoomToBothInactiveImage = ezui.makeImage(
+    symbolName="arrow.up.left.and.arrow.down.right.square",
+    template=True
+)
+zoomToBothInactiveImage = ezui.tools.applySymbolConfigurationToImage(zoomToBothInactiveImage, zoomSymbolConfiguration)
+zoomToBothActiveImage = ezui.makeImage(
+    symbolName="arrow.up.left.and.arrow.down.right.square.fill",
+    template=True
+)
+zoomToBothActiveImage = ezui.tools.applySymbolConfigurationToImage(zoomToBothActiveImage, zoomSymbolConfiguration)
+
 class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     debug = debug
@@ -268,19 +307,16 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         * HorizontalStack   @toolbarStack
         > [__]              @textField
         > [_ ...]           @zoomPointSizeComboBox
-        > ({arrow.left.and.right.square})               @zoomToWidthButton
-        > ({arrow.up.and.down.square})                  @zoomToHeightButton
-        > ({arrow.up.left.and.arrow.down.right.square}) @zoomToBothButton
+        > ({arrows})        @zoomToWidthButton
+        > ({arrows})        @zoomToHeightButton
+        > ({arrows})        @zoomToBothButton
         > ---               @line1
         > ({gearshape})     @settingsButton
 
         * ScrollingMerzView @gridView
         """
         numberFieldWidth = 50
-        zoomSymbolConfiguration=dict(
-            pointSize=16,
-            weight="light"
-        )
+
         settingsSymbolConfiguration = dict(zoomSymbolConfiguration)
         settingsSymbolConfiguration["pointSize"] = 15
         descriptionData = dict(
@@ -303,16 +339,16 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 gravity="trailing"
             ),
             zoomToBothButton=dict(
-                gravity="trailing",
-                symbolConfiguration=zoomSymbolConfiguration
+                image=zoomToBothInactiveImage,
+                gravity="trailing"
             ),
             zoomToWidthButton=dict(
-                gravity="trailing",
-                symbolConfiguration=zoomSymbolConfiguration
+                image=zoomToWidthInactiveImage,
+                gravity="trailing"
             ),
             zoomToHeightButton=dict(
-                gravity="trailing",
-                symbolConfiguration=zoomSymbolConfiguration
+                image=zoomToHeightInactiveImage,
+                gravity="trailing"
             ),
             line1=dict(
                 gravity="trailing"
@@ -349,6 +385,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         self.gridItemContainer = self.gridContainer.appendBaseSublayer(name="gridItemContainer")
         self.gridContainer.setContainerScale(1.0)
 
+        self._updateZoomButtons()
         self.loadSettings()
         self.loadColors()
         self.loadOperatorOptions()
@@ -798,6 +835,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         gridView.setMerzViewSize((width * zoomScale, height * zoomScale))
         gridContainer.setBackgroundColor(self.backgroundColor)
         scrollView.setBackgroundColor_(ezui.makeColor(self.backgroundColor))
+        if self._zoomToFitMode is not None:
+            self._zoomToFit(self._zoomToFitMode)
 
     # Pre-Processing
 
@@ -837,6 +876,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
 
     # Zoom
 
+    _zoomToFitMode = None
+
     def zoomPointSizeComboBoxCallback(self, sender):
         value = sender.get()
         value = value.replace("pt", "")
@@ -872,12 +913,32 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             scale = yScale
         elif direction == "both":
             scale = min((xScale, yScale))
+        if scale == 1.0:
+            return
         zoomScale *= scale
-        self.performViewZoom(scale=zoomScale)
+        self.performViewZoom(scale=zoomScale, fittingTo=direction)
+
+    def _updateZoomButtons(self):
+        zoomToWidthButton = self.w.getItem("zoomToWidthButton")
+        zoomToHeightButton = self.w.getItem("zoomToHeightButton")
+        zoomToBothButton = self.w.getItem("zoomToBothButton")
+        if self._zoomToFitMode == "width":
+            zoomToWidthButton._button.setImage(imageObject=zoomToWidthActiveImage)
+        else:
+            zoomToWidthButton._button.setImage(imageObject=zoomToWidthInactiveImage)
+        if self._zoomToFitMode == "height":
+            zoomToHeightButton._button.setImage(imageObject=zoomToHeightActiveImage)
+        else:
+            zoomToHeightButton._button.setImage(imageObject=zoomToHeightInactiveImage)
+        if self._zoomToFitMode == "both":
+            zoomToBothButton._button.setImage(imageObject=zoomToBothActiveImage)
+        else:
+            zoomToBothButton._button.setImage(imageObject=zoomToBothInactiveImage)
 
     _mouseZoomLastLocation = None
 
-    def performViewZoom(self, scale=None, event=None):
+    def performViewZoom(self, scale=None, event=None, fittingTo=None):
+        self._zoomToFitMode = fittingTo
         gridView = self.gridView
         documentView = gridView.getMerzView().getNSView()
         gridContainer = self.gridContainer
@@ -970,6 +1031,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         title = f"{pointSize} pt"
         if comboBox.get() != title:
             comboBox.set(title)
+        self._updateZoomButtons()
 
     # Settings
 
