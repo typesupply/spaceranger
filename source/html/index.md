@@ -160,7 +160,7 @@ spaceranger.setWindowSettings(settings, ufoOperator=CurrentDesignspace())
 
 ## Change Log
 
-### 1.5 (in progress)
+### 1.5
 
 - Added a button that will fit the content to the view based on width and height.
 - Added reverse options for the x and y axes.
