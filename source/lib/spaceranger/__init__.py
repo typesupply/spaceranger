@@ -89,9 +89,11 @@ defaults = dict(
     xAxisMode="count", # count | locations | instances
     xAxisCount=5,
     xAxisLocations=[-1000, 0, 1000],
+    xAxisReverse=False,
     yAxisMode="count",
     yAxisCount=5,
     yAxisLocations=[-1000, 0, 1000],
+    yAxisReverse=False,
     columnWidthMode="fit",
     insertSources=False,
     highlightSources=False,
@@ -377,7 +379,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         settings = self.settings
         discreteLocation = settings["discreteLocation"]
         xAxisName = settings["xAxisName"]
+        xAxisReverse = settings["xAxisReverse"]
         yAxisName = settings["yAxisName"]
+        yAxisReverse = settings["yAxisReverse"]
         insertSources = settings["insertSources"]
         insertInstances = settings["insertInstances"]
         # establish the values for unchosen axes
@@ -453,6 +457,11 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             columnLocations.sort()
         if sortRowLocations:
             rowLocations.sort()
+        if xAxisReverse:
+            columnLocations.reverse()
+        if yAxisReverse:
+            rowLocations.reverse()
+
         # make the layers
         self.items = []
         self.itemsInColumns = {}
@@ -1359,6 +1368,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         if settings["xAxisName"] in xAxisNames:
             xAxisIndex = xAxisNames.index(settings["xAxisName"])
         xAxisMode = ["count", "locations", "instances"].index(settings["xAxisMode"])
+        xAxisReverse = settings["xAxisReverse"]
 
         yAxisNames = []
         if len(xAxisNames) > 1:
@@ -1367,6 +1377,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         if settings["yAxisName"] in yAxisNames:
             yAxisIndex = yAxisNames.index(settings["yAxisName"])
         yAxisMode = ["count", "locations", "instances"].index(settings["yAxisMode"])
+        yAxisReverse = settings["yAxisReverse"]
         if settings["columnWidthMode"] == "fit":
             columnWidthMode = 0
         else:
@@ -1429,6 +1440,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         :
         [__]                    @xAxisValueField
 
+        :
+        [ ] Reverse             @xAxisReverseCheckbox
+
         : Widths:
         (X) Fit Content         @columnWidthsRadioButtons
         ( ) Monospace
@@ -1445,6 +1459,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         :
         [__]                    @yAxisValueField
+
+        :
+        [ ] Reverse             @yAxisReverseCheckbox
 
         ---
 
@@ -1503,6 +1520,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             xAxisModeRadioButtons=dict(
                 selected=xAxisMode
             ),
+            xAxisReverseCheckbox=dict(
+                value=xAxisReverse
+            ),
             columnWidthsRadioButtons=dict(
                 selected=columnWidthMode
             ),
@@ -1513,6 +1533,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
             ),
             yAxisModeRadioButtons=dict(
                 selected=yAxisMode
+            ),
+            yAxisReverseCheckbox=dict(
+                value=yAxisReverse
             ),
 
             insertSourcesCheckbox=dict(
@@ -1642,8 +1665,10 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["applyRules"] = values["applyRulesCheckbox"]
         settings["applyKerning"] = values["applyKerningCheckbox"]
         settings["xAxisName"] = settings["axisNames"][values["xAxisPopUpButton"]]
+        settings["xAxisReverse"] = values["xAxisReverseCheckbox"]
         if len(settings["axisNames"]) > 1:
             settings["yAxisName"] = settings["axisNames"][values["yAxisPopUpButton"]]
+        settings["yAxisReverse"] = values["yAxisReverseCheckbox"]
         settings["columnWidthMode"] = ["fit", "mono"][values["columnWidthsRadioButtons"]]
         settings["insertSources"] = values["insertSourcesCheckbox"]
         settings["highlightSources"] = values["highlightSourcesCheckbox"]
