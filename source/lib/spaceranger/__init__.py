@@ -86,10 +86,12 @@ maxZoomScale = max(zoomPointSizeOptions) / itemPointSize
 defaults = dict(
     applyRules=False,
     applyKerning=True,
+    xAxisName="undefined",
     xAxisMode="count", # count | locations | instances
     xAxisCount=5,
     xAxisLocations=[-1000, 0, 1000],
     xAxisReverse=False,
+    yAxisName="undefined",
     yAxisMode="count",
     yAxisCount=5,
     yAxisLocations=[-1000, 0, 1000],
@@ -1104,21 +1106,6 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             xAxisName = None
         if yAxisName and yAxisName not in axisNames:
             yAxisName = None
-        # pick an initial pair of axes. type designers
-        # like to look at x=width, y=weight, so that's
-        # the preferred default.
-        if xAxisName is None and axisNames:
-            xAxisName = axisNames[0]
-            if "width" in axisNames:
-                xAxisName = "width"
-        if yAxisName is None and len(axisNames) > 1:
-            if "weight" in axisNames and xAxisName != "weight":
-                yAxisName = "weight"
-            if yAxisName is None:
-                for name in axisNames:
-                    if name != xAxisName:
-                        yAxisName = name
-                        break
         self.settings["axisNames"] = axisNames
         self.settings["xAxisName"] = xAxisName
         self.settings["yAxisName"] = yAxisName

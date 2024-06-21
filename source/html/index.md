@@ -165,6 +165,7 @@ spaceranger.setWindowSettings(settings, ufoOperator=CurrentDesignspace())
 - Added a button that will fit the content to the view based on width and height.
 - Added reverse options for the x and y axes.
 - Fit to width/height/both are now persistent until you explicitly change the zoom level in the window. In other words, if you have a "fit to ..." active, the zoom in the view will be updated when you switch glyphs.
+- Axis names are now stored in the settings.
 
 ### 1.4
 
