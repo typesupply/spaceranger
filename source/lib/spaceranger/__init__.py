@@ -266,9 +266,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         * HorizontalStack   @toolbarStack
         > [__]              @textField
         > [_ ...]           @zoomPointSizeComboBox
-        > ({arrow.left.and.right.square}) @zoomToWidthButton
-        > ({arrow.up.and.down.square})    @zoomToHeightButton
-        # fit to best symbol: arrow.up.left.and.arrow.down.right.square
+        > ({arrow.left.and.right.square})               @zoomToWidthButton
+        > ({arrow.up.and.down.square})                  @zoomToHeightButton
+        > ({arrow.up.left.and.arrow.down.right.square}) @zoomToBothButton
         > ---               @line1
         > ({gearshape})     @settingsButton
 
@@ -299,6 +299,10 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 value=f"{itemPointSize} pt",
                 width=80,
                 gravity="trailing"
+            ),
+            zoomToBothButton=dict(
+                gravity="trailing",
+                symbolConfiguration=zoomSymbolConfiguration
             ),
             zoomToWidthButton=dict(
                 gravity="trailing",
@@ -841,6 +845,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
     def zoomToHeightButtonCallback(self, sender):
         self._zoomToFit("height")
 
+    def zoomToBothButtonCallback(self, sender):
+        self._zoomToFit("both")
+
     def _zoomToFit(self, direction):
         gridView = self.gridView
         scrollView = self.gridView.getNSScrollView()
@@ -848,10 +855,14 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         zoomScale = gridContainer.getContainerScale()
         containerWidth, containerHeight = gridView.getMerzViewSize()
         availableWidth, availableHeight = scrollView.contentSize()
+        xScale = availableWidth / containerWidth
+        yScale = availableHeight / containerHeight
         if direction == "width":
-            scale = availableWidth / containerWidth
+            scale = xScale
         elif direction == "height":
-            scale = availableHeight / containerHeight
+            scale = yScale
+        elif direction == "both":
+            scale = min((xScale, yScale))
         zoomScale *= scale
         self.performViewZoom(scale=zoomScale)
 
