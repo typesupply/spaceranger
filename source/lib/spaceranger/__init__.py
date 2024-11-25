@@ -86,25 +86,34 @@ maxZoomScale = max(zoomPointSizeOptions) / itemPointSize
 defaults = dict(
     applyRules=False,
     applyKerning=True,
+
     xAxisName="undefined",
     xAxisMode="count", # count | locations | instances
     xAxisCount=5,
     xAxisLocations=[-1000, 0, 1000],
     xAxisReverse=False,
+
     yAxisName="undefined",
     yAxisMode="count",
     yAxisCount=5,
     yAxisLocations=[-1000, 0, 1000],
     yAxisReverse=False,
+
     columnWidthMode="fit",
-    insertSources=False,
-    highlightSources=False,
-    insertInstances=False,
-    highlightInstances=False,
-    usePrepolator=False,
-    highlightUnsmooths=False,
+
     invertColors=False,
-    autoSmoothDefault=True
+
+    insertSources=False,
+    insertInstances=False,
+
+    highlightSources=False,
+    highlightInstances=False,
+
+    highlightUnsmooths=False,
+    highlightSourceUnsmooths=True,
+    autoSmoothDefault=True,
+
+    usePrepolator=False,
 )
 publicWindowSettings = list(defaults.keys())
 d = {}
@@ -673,6 +682,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         highlightSources = settings["highlightSources"]
         highlightInstances = settings["highlightInstances"]
         checkSmooths = settings["highlightUnsmooths"]
+        checkSourceUnsmooths = settings["highlightSourceUnsmooths"]
         autoSmoothDefault = settings["autoSmoothDefault"]
         # run prepolator
         self._runPrepolator(glyphNames)
@@ -802,27 +812,31 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             unsmoothHighlightLayer = glyphContainerLayer.getSublayer("unsmoothHighlights")
             unsmoothHighlightLayer.clearSublayers()
             if checkSmooths:
-                if len(glyph.contours) == len(model.contours):
-                    unsmoothHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
-                    unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
-                    for contourIndex, segmentIndex in modelSmooths:
-                        contour = glyph.contours[contourIndex]
-                        v = getRelativeSmoothness(
-                            contour=contour,
-                            segmentIndex=segmentIndex,
-                        )
-                        if v:
-                            segment = contour.segments[segmentIndex]
-                            onCurve = segment.onCurve
-                            x = onCurve.x
-                            y = onCurve.y
-                            unsmoothHighlightLayer.appendOvalSublayer(
-                                position=(x-unsmoothHighlightHalfSize, y-unsmoothHighlightHalfSize),
-                                size=(unsmoothHighlightSize, unsmoothHighlightSize),
-                                fillColor=None,
-                                strokeColor=(1, 0, 0, v),
-                                strokeWidth=1
+                doCheck = True
+                if isSource:
+                    doCheck = checkSourceUnsmooths
+                if doCheck:
+                    if len(glyph.contours) == len(model.contours):
+                        unsmoothHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
+                        unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
+                        for contourIndex, segmentIndex in modelSmooths:
+                            contour = glyph.contours[contourIndex]
+                            v = getRelativeSmoothness(
+                                contour=contour,
+                                segmentIndex=segmentIndex,
                             )
+                            if v:
+                                segment = contour.segments[segmentIndex]
+                                onCurve = segment.onCurve
+                                x = onCurve.x
+                                y = onCurve.y
+                                unsmoothHighlightLayer.appendOvalSublayer(
+                                    position=(x-unsmoothHighlightHalfSize, y-unsmoothHighlightHalfSize),
+                                    size=(unsmoothHighlightSize, unsmoothHighlightSize),
+                                    fillColor=None,
+                                    strokeColor=(1, 0, 0, v),
+                                    strokeWidth=1
+                                )
         # set the grid size
         width = gridInset * 2
         width += sum(columnWidths)
@@ -1456,6 +1470,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         usePrepolator = settings["usePrepolator"]
 
         highlightUnsmooths = settings["highlightUnsmooths"]
+        highlightSourceUnsmooths = settings["highlightSourceUnsmooths"]
         autoSmoothDefault = settings["autoSmoothDefault"]
 
         self.suffixes = ["_none_", "_auto_"]
@@ -1552,6 +1567,8 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         :
         [X] Highlight Unsmooths @highlightUnsmoothsCheckbox
         :
+        [ ] Highlight Source Unsmooths @highlightSourceUnsmoothsCheckbox
+        :
         [X] Auto-Smooth Default @autoSmoothDefaultCheckbox
         """
         numberFieldWidth = 50
@@ -1624,6 +1641,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
             highlightUnsmoothsCheckbox=dict(
                 value=highlightUnsmooths
+            ),
+            highlightSourceUnsmoothsCheckbox=dict(
+                value=highlightSourceUnsmooths
             ),
             autoSmoothDefaultCheckbox=dict(
                 value=autoSmoothDefault
@@ -1741,6 +1761,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["invertColors"] = values["invertColorsCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
         settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
+        settings["highlightSourceUnsmooths"] = values["highlightSourceUnsmoothsCheckbox"]
         settings["autoSmoothDefault"] = values["autoSmoothDefaultCheckbox"]
         self.editCallback()
 
