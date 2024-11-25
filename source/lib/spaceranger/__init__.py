@@ -109,8 +109,8 @@ defaults = dict(
     highlightSources=False,
     highlightInstances=False,
 
-    highlightUnsmooths=False,
-    highlightSourceUnsmooths=True,
+    highlightKinks=False,
+    highlightSourceKinks=True,
     autoSmoothDefault=True,
 
     usePrepolator=False,
@@ -132,6 +132,17 @@ unsmoothThresholdFallback = "undefined"
 if getExtensionDefault(unsmoothThresholdKey, fallback=unsmoothThresholdFallback) != unsmoothThresholdFallback:
     removeExtensionDefault(unsmoothThresholdKey)
 
+renames = dict(
+    highlightUnsmooths="highlightKinks",
+    highlightSourceUnsmooths="highlightSourceKinks"
+)
+renameFallbackValue = "Rename Fallback Value"
+
+for oldKey, newKey in renames.items():
+    oldValue = getExtensionDefault(oldKey, fallback=renameFallbackValue)
+    if oldValue != renameFallbackValue:
+        removeExtensionDefault(oldKey)
+        setExtensionDefault(newKey, oldValue)
 
 # ---------
 # Scripting
@@ -545,7 +556,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 )
                 # post-processing
                 glyphContainerLayer.appendBaseSublayer(
-                    name="unsmoothHighlights"
+                    name="kinkHighlights"
                 )
                 # location info
                 locationText = []
@@ -681,8 +692,8 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
         columnWidthMode = settings["columnWidthMode"]
         highlightSources = settings["highlightSources"]
         highlightInstances = settings["highlightInstances"]
-        checkSmooths = settings["highlightUnsmooths"]
-        checkSourceUnsmooths = settings["highlightSourceUnsmooths"]
+        checkKinks = settings["highlightKinks"]
+        checkSourceKinks = settings["highlightSourceKinks"]
         autoSmoothDefault = settings["autoSmoothDefault"]
         # run prepolator
         self._runPrepolator(glyphNames)
@@ -745,7 +756,7 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                 columnWidth += itemPadding * 2
                 columnWidths.append(columnWidth)
         # post-processing prep
-        if checkSmooths:
+        if checkKinks:
             defaultLocation = self.ufoOperator.newDefaultLocation(discreteLocation=discreteLocation)
             model = compileGlyph(
                 glyphNames=glyphNames,
@@ -808,17 +819,17 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
             with glyphPathLayer.propertyGroup():
                 glyphPathLayer.setFillColor(self.fillColor)
                 glyphPathLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-            # set the unsmooths
-            unsmoothHighlightLayer = glyphContainerLayer.getSublayer("unsmoothHighlights")
-            unsmoothHighlightLayer.clearSublayers()
-            if checkSmooths:
+            # set the kinks
+            kinkHighlightLayer = glyphContainerLayer.getSublayer("kinkHighlights")
+            kinkHighlightLayer.clearSublayers()
+            if checkKinks:
                 doCheck = True
                 if isSource:
-                    doCheck = checkSourceUnsmooths
+                    doCheck = checkSourceKinks
                 if doCheck:
                     if len(glyph.contours) == len(model.contours):
-                        unsmoothHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
-                        unsmoothHighlightHalfSize = unsmoothHighlightSize / 2
+                        kinkHighlightSize = itemPointSize * 0.1 * (1.0 / scale)
+                        kinkHighlightHalfSize = kinkHighlightSize / 2
                         for contourIndex, segmentIndex in modelSmooths:
                             contour = glyph.contours[contourIndex]
                             v = getRelativeSmoothness(
@@ -830,9 +841,9 @@ class SpaceRangerWindowController(Subscriber, ezui.WindowController):
                                 onCurve = segment.onCurve
                                 x = onCurve.x
                                 y = onCurve.y
-                                unsmoothHighlightLayer.appendOvalSublayer(
-                                    position=(x-unsmoothHighlightHalfSize, y-unsmoothHighlightHalfSize),
-                                    size=(unsmoothHighlightSize, unsmoothHighlightSize),
+                                kinkHighlightLayer.appendOvalSublayer(
+                                    position=(x-kinkHighlightHalfSize, y-kinkHighlightHalfSize),
+                                    size=(kinkHighlightSize, kinkHighlightSize),
                                     fillColor=None,
                                     strokeColor=(1, 0, 0, v),
                                     strokeWidth=1
@@ -1469,8 +1480,8 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
 
         usePrepolator = settings["usePrepolator"]
 
-        highlightUnsmooths = settings["highlightUnsmooths"]
-        highlightSourceUnsmooths = settings["highlightSourceUnsmooths"]
+        highlightKinks = settings["highlightKinks"]
+        highlightSourceKinks = settings["highlightSourceKinks"]
         autoSmoothDefault = settings["autoSmoothDefault"]
 
         self.suffixes = ["_none_", "_auto_"]
@@ -1555,7 +1566,7 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         ---
 
         : Colors:
-        [ ] Invert             @invertColorsCheckbox
+        [ ] Invert              @invertColorsCheckbox
 
         !§ Pre-Process
 
@@ -1565,9 +1576,9 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         !§ Post-Process
 
         :
-        [X] Highlight Unsmooths @highlightUnsmoothsCheckbox
+        [X] Highlight Kinks     @highlightKinksCheckbox
         :
-        [ ] Highlight Source Unsmooths @highlightSourceUnsmoothsCheckbox
+        [ ] Highlight Source Kinks @highlightSourceKinksCheckbox
         :
         [X] Auto-Smooth Default @autoSmoothDefaultCheckbox
         """
@@ -1639,11 +1650,11 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
                 value=usePrepolator
             ),
 
-            highlightUnsmoothsCheckbox=dict(
-                value=highlightUnsmooths
+            highlightKinksCheckbox=dict(
+                value=highlightKinks
             ),
-            highlightSourceUnsmoothsCheckbox=dict(
-                value=highlightSourceUnsmooths
+            highlightSourceKinksCheckbox=dict(
+                value=highlightSourceKinks
             ),
             autoSmoothDefaultCheckbox=dict(
                 value=autoSmoothDefault
@@ -1760,8 +1771,8 @@ class SpaceRangerGridSettingsWindowController(ezui.WindowController):
         settings["highlightInstances"] = values["highlightInstancesCheckbox"]
         settings["invertColors"] = values["invertColorsCheckbox"]
         settings["usePrepolator"] = values["usePrepolatorCheckbox"]
-        settings["highlightUnsmooths"] = values["highlightUnsmoothsCheckbox"]
-        settings["highlightSourceUnsmooths"] = values["highlightSourceUnsmoothsCheckbox"]
+        settings["highlightKinks"] = values["highlightKinksCheckbox"]
+        settings["highlightSourceKinks"] = values["highlightSourceKinksCheckbox"]
         settings["autoSmoothDefault"] = values["autoSmoothDefaultCheckbox"]
         self.editCallback()
 
@@ -1851,7 +1862,7 @@ def getRelativeSmoothness(
         inPoints = (previousAnchor, anchor)
         outPoints = (anchor, bcpOut)
     else:
-        # this edge case can happen if teh contours being
+        # this edge case can happen if the contours being
         # compared have different start points. in that case,
         # there is a chance that this is now testing the
         # smooth status of a line-line segment. fall back safely.

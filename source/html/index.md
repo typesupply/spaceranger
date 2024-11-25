@@ -77,9 +77,11 @@ Pre-processing can be applied to sources. Currently only one is available:
 
 Post-processing can be applied to the interpolations shown in the grid. Currently only one is available:
 
-**Unsmooths**
+**Kinks**
 
-This test will find all the points marked as smooth in the source at the default location and then check the corresponding points in the interpolations to see if they are just shy of being smooth by calculating the angles of the points. The intensity of the concern of the algorithm will be shown as the opacity of the indicator in the view.
+This test will find all the points marked as smooth in the source at the default location and then check the corresponding points in the interpolations to see if they are kinked by calculating the angles of the points. The intensity of the kink will be shown as the opacity of the indicator in the view. **When you are fighting with the kink on the spine of the S or whatever, always remember this quote from the sage: "The kinking is inevitable." — Erik van Blokland**
+
+- Highlight Source Kinks: This will test the sources for kinks using the same algorithm and display as above.
 
 - Auto-Smooth Default: This will use the very reliable [GuessSmoothPointPen](https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/pens/pointPen.py) to determine which points in the source should be considered smooth. This will not make any changes to your source glyph.
 
